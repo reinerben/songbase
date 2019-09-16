@@ -68,14 +68,14 @@ public class Song implements Comparable<Song> {
         if (!Files.isDirectory(newpath)) throw new RuntimeException("New folder not found: " + newpath.toAbsolutePath().toString());
         Path newfile = newpath.resolve(name);
         try {
-            System.out.format("SONG: Moving %s to %s\n", path.toString(), newfile.toString());
+            System.err.format("SONG: Moving %s to %s\n", path.toString(), newfile.toString());
             if (!dryrun) Files.move(path, newfile);
             if (dryrun && Files.exists(newfile)) throw new FileAlreadyExistsException(newfile.toString());
         }
         catch (FileAlreadyExistsException ex) {
-            System.out.format("SONG: Already exist (not moved) %s\n", newfile.toString());
+            System.err.format("SONG: Already exist (not moved) %s\n", newfile.toString());
             if (delete) {
-                System.out.format("SONG: Deleting %s\n", path.toString());
+                System.err.format("SONG: Deleting %s\n", path.toString());
                 try {
                     if (!dryrun) Files.delete(path);
                 }

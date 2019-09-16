@@ -9,13 +9,13 @@ import java.util.Arrays;
 public class SongBase {
     public static boolean nointerpret = false;
 
-    // --dryrun     only report what would be done
-    // --check      only check if all songs exists
-    // --nocheck    don't check if a song exists
+    // --dryrun      only report what would be done
+    // --check       only check if all songs exists
+    // --nocheck     don't check if a song exists
     // --nointerpret skip check for interpret folder
-    // --rmsource   delete a source song if already exists in destination
-    // --base       base folder for playlist factory
-    // --mapping    folder transfer a=b
+    // --rmsource    delete a source song if already exists in destination
+    // --base        base folder for playlist factory
+    // --mapping     folder transfer a=b
 
     public static void main(String[] args) {
 
@@ -90,7 +90,7 @@ public class SongBase {
             Path to = base.resolve(into);
             if (!Files.isDirectory(to)) throw new RuntimeException("To folder not found: " + to.toString());
 
-            System.out.format("SONGBASE: Mapping from '%s' to '%s'\n", from.replaceAll("\\\\", "/"), into.toString().replaceAll("\\\\", "/"));
+            System.err.format("SONGBASE: Mapping from '%s' to '%s'\n", from.replaceAll("\\\\", "/"), into.toString().replaceAll("\\\\", "/"));
             for (Playlist.Entry song : list.getEntries()) {
                 Path path = song.getFolder();
                 String interpret = song.getInterpret();

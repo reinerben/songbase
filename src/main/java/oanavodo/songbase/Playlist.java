@@ -1,6 +1,11 @@
 package oanavodo.songbase;
 
 
+import java.io.BufferedReader;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -9,41 +14,29 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class Playlist {
     public static boolean dryrun = false;
 
     private Path path;
     private Path parent;
-    private List<Entry> songs;
-    private boolean changed;
+    private String name;
+    private final List<Entry> songs = new ArrayList<>();
+    private boolean changed = false;
 
     public Playlist(Path path, boolean onlycheck) {
         this.path = path;
         this.parent = path.getParent();
-        this.changed = false;
-        this.songs = new ArrayList<>();
+        this.name = path.getFileName().toString();
         try {
             if (!Files.isRegularFile(path)) throw new RuntimeException("Playlist not found: " + path.toAbsolutePath().toString());
             String name = path.toString();
             int end = name.lastIndexOf(".");
             if (end == -1) end = name.length();
             if (!name.endsWith(".m3u")) throw new RuntimeException("Playlist type not supported: " + name.substring(end));
-            System.out.format("PLAYLIST: reading %s\n", path.toString());
-            int count = 0;
-            for (String line : Files.readAllLines(path, StandardCharsets.ISO_8859_1)) {
-                line = line.trim();
-                if (line.isEmpty()) continue;
-                if (line.startsWith("#")) continue;
-                line = line.replace("\\", "/");
-                try {
-                    songs.add(new Entry(Paths.get(line), count++, false));
-                }
-                catch (Exception ex) {
-                    if (!onlycheck) throw ex;
-                    System.out.println(ex.getMessage());
-                }
-            }
+            System.err.format("PLAYLIST: reading %s\n", path.toString());
+            fill(new BufferedReader(new InputStreamReader(new FileInputStream(path.toFile()), StandardCharsets.ISO_8859_1)), onlycheck);
         }
         catch (RuntimeException ex) {
             throw ex;
@@ -53,6 +46,40 @@ public class Playlist {
         }
     }
 
+    public Playlist(InputStream input, Path parent, boolean onlycheck) {
+        this.path = null;
+        this.parent = parent;
+        try {
+            System.err.format("PLAYLIST: reading <stdin>\n");
+            fill(new BufferedReader(new InputStreamReader(input, StandardCharsets.ISO_8859_1)), onlycheck);
+        }
+        catch (RuntimeException ex) {
+            throw ex;
+        }
+        catch (Exception ex) {
+            throw new RuntimeException(ex.getMessage(), ex.getCause());
+        }
+    }
+
+    private void fill(BufferedReader reader, boolean onlycheck) throws IOException {
+        AtomicInteger count = new AtomicInteger(0);
+        try (reader) {
+            reader.lines().forEach(line -> {
+                line = line.trim();
+                if (line.isEmpty()) return;
+                if (line.startsWith("#")) return;
+                line = line.replace("\\", "/");
+                try {
+                    int c = count.getAndIncrement();
+                    songs.add(new Entry(Paths.get(line), c, false));
+                }
+                catch (Exception ex) {
+                    if (!onlycheck) throw ex;
+                    System.err.println(ex.getMessage());
+                }
+            });
+        }
+    }
     public Path getBase() {
         return parent;
     }
@@ -62,17 +89,15 @@ public class Playlist {
     }
 
     public void move(Song prev, Song now) {
-        for (Entry song : songs) {
-            if (song.equals(prev)) {
-                Path relfile = parent.relativize(now.getPath());
-                setSong(song.getIndex(), new Entry(relfile, song.getIndex(), Song.dryrun));
-            }
-        }
+        songs.stream().filter(song -> song.equals(prev)).forEach((song) -> {
+            Path relfile = parent.relativize(now.getPath());
+            setSong(song.getIndex(), new Entry(relfile, song.getIndex(), Song.dryrun));
+        });
     }
 
     private void setSong(int index, Entry song) {
         songs.set(index, song);
-        System.out.format("%s: %s\n", path.getFileName().toString(), song.getEntry());
+        System.err.format("%s: %s\n", name, song.getEntry());
         changed = true;
     }
 
@@ -81,17 +106,17 @@ public class Playlist {
     }
 
     public void write() {
-        System.out.format("PLAYLIST: writing %s\n", path.toString());
+        if (path == null) throw new RuntimeException("Playlists read from stdin cannot be written");
+        System.err.format("PLAYLIST: writing %s\n", path.toString());
         if (dryrun) return;
         try {
             songs.sort(Comparator.naturalOrder());
             for (int i = 0; i < songs.size(); i++) {
                 songs.get(i).setIndex(i);
             }
-            try (PrintWriter out = new PrintWriter(path.toFile(), "ISO-8859-1")) {
-                for (Entry song : songs) {
-                    out.println(song.getEntry());
-                }
+            PrintWriter out = new PrintWriter(path.toFile(), StandardCharsets.ISO_8859_1);
+            try (out) {
+                songs.forEach(song -> out.println(song.getEntry()));
             }
             changed = false;
         }
