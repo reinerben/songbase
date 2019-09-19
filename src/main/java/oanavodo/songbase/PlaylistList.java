@@ -16,7 +16,7 @@ public class PlaylistList {
         try {
             if (!Files.isDirectory(base)) throw new RuntimeException("Folder not found: " + base.toAbsolutePath().toString());
             Files.walk(base).filter(path -> path.getFileName().toString().endsWith(".m3u")).forEach(path -> {
-                lists.put(path, new Playlist(path, onlycheck));
+                lists.put(path, Playlist.of(path, onlycheck));
             });
         }
         catch (RuntimeException ex) {
@@ -32,14 +32,10 @@ public class PlaylistList {
     }
 
     public void move(Song prev, Song now) {
-        for (Playlist list : lists.values()) {
-            list.move(prev, now);
-        }
+        lists.values().forEach(list -> list.move(prev, now));
     }
 
     public void update() {
-        for (Playlist list : lists.values()) {
-            if (list.isChanged()) list.write();
-        }
+        lists.values().stream().filter(list -> list.isChanged()).forEach(list -> list.write());
     }
 }
