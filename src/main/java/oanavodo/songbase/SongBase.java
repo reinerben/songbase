@@ -9,7 +9,6 @@ import java.nio.file.Paths;
 import java.util.Arrays;
 
 public class SongBase {
-    public static boolean nointerpret = false;
 
     // --dryrun             only report what would be done
     // --check              only check if all songs exists
@@ -17,12 +16,14 @@ public class SongBase {
     // --nointerpret        skip check for interpret folder
     // --rmsource           delete a source song if already exists in destination
     // --base <dir>         base folder for playlist factory
-    // --mapping <a>=<b>    folder transfer a=b
+    // --map <a>=<b>    folder transfer a=b
     // --type <type>        type of stdin/stdout playlist (default: m3u)
-    // --diffs <list>       write content differences to stdout
-    // --equals <list>      write content equals to stdout
+    // --add <list>         write content of both to stdout
+    // --remove <list>      write content differences to stdout
+    // --intersect <list>   write content equals to stdout
+    // --select <string>    write content filtered for string to stdout
 
-    public static enum Operation { NONE, CHECKONLY, MAP, ADD, REMOVE, INTERSECT };
+    public static enum Operation { NONE, CHECKONLY, MAP, ADD, REMOVE, INTERSECT, SELECT };
 
     public static void main(String[] args) {
 
@@ -30,11 +31,13 @@ public class SongBase {
             // output encoding utf-8 (call chcp 65001 for windows console)
             System.setErr(new PrintStream(System.err, true, StandardCharsets.UTF_8));
 
-            Operation command = Operation.NONE;
+            Operation command = Operation.MAP;
             Path root = null;
             String from = null;
             Path into = null;
             String type = "m3u";
+            String search = "";
+            boolean nointerpret = false;
             int i = 0;
             while (i < args.length) {
                 if (!args[i].startsWith("--")) break;
@@ -62,7 +65,7 @@ public class SongBase {
                         root = Paths.get(args[i++]);
                         if (!Files.isDirectory(root)) throw new RuntimeException("Base folder not found: " + root.toAbsolutePath().toString());
                         break;
-                    case "--mapping":
+                    case "--map":
                         if ((i >= args.length) || args[i].startsWith("--") || args[i].isBlank()) throw new RuntimeException("Please supply mapping");
                         String[] parts = args[i++].split("=");
                         if ((parts.length > 2) || (parts[0].isEmpty())) throw new RuntimeException("Invalid mapping: " + Arrays.toString(parts));
@@ -73,6 +76,11 @@ public class SongBase {
                     case "--type":
                         if ((i >= args.length) || args[i].startsWith("--") || args[i].isBlank()) throw new RuntimeException("Please supply type");
                         type = args[i++].toLowerCase();
+                        break;
+                    case "--select":
+                        if ((i >= args.length) || args[i].startsWith("--") || args[i].isBlank()) throw new RuntimeException("Please supply search string");
+                        search = args[i++];
+                        command = Operation.SELECT;
                         break;
                     case "--add":
                     case "--remove":
@@ -86,43 +94,73 @@ public class SongBase {
                 }
             }
 
-            Path inpath = (i < args.length) ? Paths.get(args[i++]).toAbsolutePath() : null;
-            if (root == null) {
-                root = (inpath != null) ? inpath.getParent() : Paths.get("").toAbsolutePath();
-            }
-
             switch(command) {
             case CHECKONLY:
+                if (root == null) root = Paths.get("").toAbsolutePath();
                 new PlaylistList(root, true);
                 break;
+            case SELECT: {
+                if (i >= args.length) throw new RuntimeException("Please supply input playlist or specify - for stdin");
+                Path inpath = !args[i].equals("-") ? Paths.get(args[i++]).toAbsolutePath() : null;
+                if (root == null) {
+                    root = (inpath != null) ? inpath.getParent() : Paths.get("").toAbsolutePath();
+                }
+                Playlist thisone = (inpath != null) ? Playlist.of(inpath, false) : Playlist.of(System.in, null, root, type, false);
+                Playlist result = Playlist.empty(System.out, root, type);
+                System.err.format("SONGBASE: Filter for '%s', %s\n", search, thisone.getName());
+                thisone.select(search, result);
+                result.write();
+                break;
+            }
             case ADD:
             case REMOVE:
-            case INTERSECT:
+            case INTERSECT: {
+                if (i >= args.length) throw new RuntimeException("Please supply input playlist or specify - for stdin");
+                Path inpath = !args[i].equals("-") ? Paths.get(args[i++]).toAbsolutePath() : null;
+                if (root == null) {
+                    root = (inpath != null) ? inpath.getParent() : Paths.get("").toAbsolutePath();
+                }
                 Playlist thatone = Playlist.of(into, false);
                 Playlist thisone = (inpath != null) ? Playlist.of(inpath, false) : Playlist.of(System.in, null, root, type, false);
                 Playlist result = Playlist.empty(System.out, root, type);
                 switch(command) {
-                case ADD: thisone.union(thatone, result); break;
-                case REMOVE: thisone.complement(thatone, result); break;
-                case INTERSECT: thisone.intersect(thatone, result); break;
+                case ADD:
+                    System.err.format("SONGBASE: Combine %s, %s\n", thisone.getName(), thatone.getName());
+                    thisone.union(thatone, result);
+                    break;
+                case REMOVE:
+                    System.err.format("SONGBASE: Complement %s, %s\n", thisone.getName(), thatone.getName());
+                    thisone.complement(thatone, result);
+                    break;
+                case INTERSECT:
+                    System.err.format("SONGBASE: Intersect %s, %s\n", thisone.getName(), thatone.getName());
+                    thisone.intersect(thatone, result);
+                break;
                 }
                 result.write();
                 break;
-            case MAP:
+            }
+            case MAP: {
+                if (i >= args.length) throw new RuntimeException("Please supply input playlist or specify - for stdin");
+                Path inpath = !args[i].equals("-") ? Paths.get(args[i++]).toAbsolutePath() : null;
+                if (root == null) {
+                    root = (inpath != null) ? inpath.getParent() : Paths.get("").toAbsolutePath();
+                }
                 PlaylistList factory = new PlaylistList(root, false);
-                Playlist list = factory.getPlaylist(inpath);
-                if (list == null) {
-                    list = (inpath != null) ? Playlist.of(inpath, false) : Playlist.of(System.in, null, root, type, false);
+                Playlist thisone = factory.getPlaylist(inpath);
+                if (thisone == null) {
+                    thisone = (inpath != null) ? Playlist.of(inpath, false) : Playlist.of(System.in, null, root, type, false);
                 }
 
-                Path base = list.getBase();
+                Path base = thisone.getBase();
                 if (from == null) from = "Neu";
+                if (into != null) nointerpret = true;
                 if (into == null) into = Paths.get("Rock");
                 Path to = base.resolve(into);
                 if (!Files.isDirectory(to)) throw new RuntimeException("To folder not found: " + to.toString());
 
-                System.err.format("SONGBASE: Mapping from '%s' to '%s'\n", from.replaceAll("\\\\", "/"), into.toString().replaceAll("\\\\", "/"));
-                for (Playlist.Entry song : list.getEntries()) {
+                System.err.format("SONGBASE: Mapping '%s' -> '%s', %s\n", from.replaceAll("\\\\", "/"), into.toString().replaceAll("\\\\", "/"), thisone.getName());
+                for (Playlist.Entry song : thisone.getEntries()) {
                     Path path = song.getFolder();
                     String interpret = song.getInterpret();
                     if (path.toString().equals(from)) {
@@ -138,9 +176,9 @@ public class SongBase {
                     }
                 }
                 factory.update();
-                if (list.isChanged()) list.write();
+                if (thisone.isChanged()) thisone.write();
                 break;
-            }
+            }}
         }
         catch (Exception ex) {
             ex.printStackTrace(System.err);

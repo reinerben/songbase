@@ -49,12 +49,17 @@ public abstract class Playlist {
 
     protected Playlist(Data data, boolean onlycheck) throws IOException {
         this.data = data;
-        if ((data.path != null) || (data.input != null)) fill(onlycheck);
+        if ((data.path != null) || (data.input != null)) {
+            String descr = (data.path != null) ? data.path.toString() : data.name;
+            System.err.format("PLAYLIST: reading %s\n", descr);
+            fill(onlycheck);
+        }
         sort();
     }
 
     public static Playlist of(Path path, boolean onlycheck) {
-        if (!Files.isRegularFile(path)) throw new RuntimeException("Playlist not found: " + path.toAbsolutePath().toString());
+        path = path.toAbsolutePath();
+        if (!Files.isRegularFile(path)) throw new RuntimeException("Playlist not found: " + path.toString());
         String name = path.getFileName().toString();
         int end = name.lastIndexOf(".");
         if (end == -1) end = name.length() - 1;
@@ -72,13 +77,10 @@ public abstract class Playlist {
 
     private static Playlist create(Data data, boolean onlycheck) {
         try {
-            String descr = (data.path != null) ? data.path.toString() : data.name;
             switch(data.type) {
             case "m3u":
-                System.err.format("PLAYLIST: reading %s\n", descr);
                 return new M3u(data, onlycheck);
             case "m3u8":
-                System.err.format("PLAYLIST: reading %s\n", descr);
                 return new M3u8(data, onlycheck);
             default:
                 throw new RuntimeException("Playlist type not supported: " + data.type);
@@ -95,6 +97,10 @@ public abstract class Playlist {
 
     public Path getBase() {
         return data.parent;
+    }
+
+    public String getName() {
+        return data.name;
     }
 
     public List<Entry> getEntries() {
@@ -115,7 +121,7 @@ public abstract class Playlist {
             Entry entry = new Entry(data.parent.relativize(song.getPath()), index, Song.dryrun);
             songs.add(index, entry);
             if (index < lowest.get()) lowest.set(index);
-            System.err.format("%s: +%s\n", data.name, entry.getEntry());
+            System.err.format("%s: + %s, %s\n", data.name, entry.getFolder().toString().replace("\\", "/"), entry.getName());
         });
         if (lowest.get() < Integer.MAX_VALUE) {
             for (int i = lowest.get() + 1; i < songs.size(); i++) {
@@ -137,7 +143,7 @@ public abstract class Playlist {
             if (index < 0) return;
             Entry entry = songs.remove(index);
             if (index < lowest.get()) lowest.set(index);
-            System.err.format("%s: -%s\n", data.name, entry.getEntry());
+            System.err.format("%s: - %s, %s\n", data.name, entry.getFolder().toString().replace("\\", "/"), entry.getName());
         });
         if (lowest.get() < Integer.MAX_VALUE) {
             for (int i = lowest.get(); i < songs.size(); i++) {
@@ -157,33 +163,36 @@ public abstract class Playlist {
         });
     }
 
+    public void select(String search, Playlist result) {
+        sort();
+        result.add(songs.stream().filter(song -> (
+                song.getFolder().toString().contains(search) ||
+                song.getInterpret().contains(search) ||
+                song.getTitle().contains(search)
+            )
+        ));
+    }
+
     public void union(Playlist that, Playlist result) {
         result.add(Stream.concat(songs.stream(), that.songs.stream()));
-        result.sorted = false;
-        result.changed = true;
     }
 
     public void intersect(Playlist that, Playlist result) {
         sort();
         result.add(that.songs.stream().filter(song -> (Collections.binarySearch(songs, song) >= 0)));
-        result.sorted = false;
-        result.changed = true;
     }
 
     public void complement(Playlist that, Playlist result) {
         sort();
         result.add(that.songs.stream().filter(song -> (Collections.binarySearch(songs, song) < 0)));
-        result.sorted = false;
-        result.changed = true;
     }
 
     public void write() {
         if ((data.path == null) && (data.output == null)) return;
-        System.err.format("PLAYLIST: writing %s\n", data.path.toString());
-        if (dryrun) return;
+        System.err.format("PLAYLIST: writing %s\n", data.name);
         try {
             sort();
-            save();
+            if (!dryrun || (data.path == null)) save();
             changed = false;
         }
         catch (RuntimeException ex) {
@@ -197,7 +206,7 @@ public abstract class Playlist {
     private Entry setSong(int index, Path path) {
         Entry entry = new Entry(data.parent.relativize(path), index, Song.dryrun);
         songs.set(index, entry);
-        System.err.format("%s: =%s\n", data.name, entry.getEntry());
+        System.err.format("%s: = %s, %s\n", data.name, entry.getFolder().toString().replace("\\", "/"), entry.getName());
         changed = true;
         sorted = false;
         return entry;
