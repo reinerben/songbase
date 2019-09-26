@@ -75,6 +75,11 @@ public abstract class Playlist {
         return create(new Data(null, parent, "<new>", type, null, output), false);
     }
 
+    public static boolean isSupported(Path path) {
+        String name = path.getFileName().toString();
+        return (name.endsWith(".m3u") || name.endsWith(".m3u8"));
+    }
+
     private static Playlist create(Data data, boolean onlycheck) {
         try {
             switch(data.type) {
@@ -95,8 +100,16 @@ public abstract class Playlist {
 
     protected abstract void save() throws IOException;
 
+    public boolean isStdio() {
+        return (data.path == null);
+    }
+
     public Path getBase() {
         return data.parent;
+    }
+
+    public Path getPath() {
+        return data.path;
     }
 
     public String getName() {
@@ -105,6 +118,10 @@ public abstract class Playlist {
 
     public List<Entry> getEntries() {
         return songs;
+    }
+
+    public Stream<Entry> entries() {
+        return songs.stream();
     }
 
     public boolean isChanged() {
@@ -118,7 +135,13 @@ public abstract class Playlist {
             int index = Collections.binarySearch(songs, song);
             if (index >= 0) return;
             index = -index - 1;
-            Entry entry = new Entry(data.parent.relativize(song.getPath()), index, Song.dryrun);
+            Entry entry;
+            try {
+                entry = new Entry(data.parent.relativize(song.getPath()), index, Song.dryrun);
+            }
+            catch (IllegalArgumentException ex) {
+                throw new RuntimeException("Song is outside of playlist base: " + song.getPath());
+            }
             songs.add(index, entry);
             if (index < lowest.get()) lowest.set(index);
             System.err.format("%s: + %s, %s\n", data.name, entry.getFolder().toString().replace("\\", "/"), entry.getName());
@@ -163,28 +186,24 @@ public abstract class Playlist {
         });
     }
 
-    public void select(String search, Playlist result) {
+    public Stream<? extends Song> select(String search) {
         sort();
-        result.add(songs.stream().filter(song -> (
+        return songs.stream()
+            .filter(song -> (
                 song.getFolder().toString().contains(search) ||
                 song.getInterpret().contains(search) ||
                 song.getTitle().contains(search)
-            )
-        ));
+            ));
     }
 
-    public void union(Playlist that, Playlist result) {
-        result.add(Stream.concat(songs.stream(), that.songs.stream()));
-    }
-
-    public void intersect(Playlist that, Playlist result) {
+    public Stream<? extends Song> intersect(Playlist that) {
         sort();
-        result.add(that.songs.stream().filter(song -> (Collections.binarySearch(songs, song) >= 0)));
+        return that.songs.stream().filter(song -> (Collections.binarySearch(songs, song) >= 0));
     }
 
-    public void complement(Playlist that, Playlist result) {
+    public Stream<? extends Song> complement(Playlist that) {
         sort();
-        result.add(that.songs.stream().filter(song -> (Collections.binarySearch(songs, song) < 0)));
+        return that.songs.stream().filter(song -> (Collections.binarySearch(songs, song) < 0));
     }
 
     public void write() {
