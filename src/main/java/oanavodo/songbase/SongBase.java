@@ -36,15 +36,18 @@ public class SongBase {
             "--check             Only check all playlists found in the base folder (defaults to working directory) if their songs exist.",
             "--select <string>   Write entries of playlist <list> which contains string <string> to standard output. Multiple playlist arguments are allowed.",
             "                    The string is searched in the folder, interpret and title part. The search is case sensitive.",
-            "--add               Write content of all playlists supplied as argument to standard output.",
+            "--add <list2>       Add content of playlist <list2> to all playlists supplied as arguments. If only '-' is specified",
+            "                    the union of standard input and <list2> are written to standard output. If no playlist is supplied",
+            "                    as argument the songs from <list2> are added to all playlists found in the base folder.",
             "--remove <list2>    Remove content of playlist <list2> from all playlists supplied as arguments. If only '-' is specified",
             "                    the differences between standard input and <list2> are written to standard output. If no playlist is supplied",
             "                    as argument the songs from <list2> are removed from all playlists found in the base folder.",
+            "--union             Write content of all playlists supplied as argument to standard output.",
             "--intersect <list2> Write common entries in playlist <list2> and playlist <list> to standard output. Only one playlist argument is allowed."
         ).collect(Collectors.joining("\n"));
     }
 
-    public static enum Operation { NONE, CHECKONLY, MAP, ADD, REMOVE, INTERSECT, SELECT };
+    public static enum Operation { NONE, CHECKONLY, MAP, ADD, REMOVE, UNION, INTERSECT, SELECT };
 
     public static Playlist arg2Playlist(String arg, Path root, String type) {
         if (arg.equals("-")) {
@@ -123,9 +126,10 @@ public class SongBase {
                         search = args[i++];
                         command = Operation.SELECT;
                         break;
-                    case "--add":
-                        command = Operation.valueOf(option.substring(2).toUpperCase());
+                    case "--union":
+                        command = Operation.UNION;
                         break;
+                    case "--add":
                     case "--remove":
                     case "--intersect":
                         if ((i >= args.length) || args[i].startsWith("--") || args[i].isBlank()) throw new RuntimeException("Please supply compare playlist");
@@ -161,16 +165,22 @@ public class SongBase {
                 break;
             }
             case ADD: {
-                if (i >= args.length) throw new RuntimeException("Please supply input playlist or specify - for stdin");
-                PlaylistList factory = args2Factory(Arrays.copyOfRange(args, i, args.length), root, type);
-                if (root == null) root = factory.getBase();
-                Playlist result = Playlist.empty(System.out, root, type);
-                result.add(
-                    factory.stream()
-                        .peek(list -> System.err.format("SONGBASE: Add %s\n", list.getName()))
-                        .flatMap(list -> list.entries())
+                PlaylistList factory;
+                if (i < args.length) {
+                    factory = args2Factory(Arrays.copyOfRange(args, i, args.length), root, type);
+                    if (root == null) root = factory.getBase();
+                }
+                else {
+                    if (root == null) root = Paths.get("").toAbsolutePath();
+                    factory = new PlaylistList(root, true, false);
+                }
+                Playlist that = Playlist.of(into, false);
+                factory.removePlaylist(that);
+                factory.stream()
+                    .peek(list -> System.err.format("SONGBASE: Add %s to %s\n", that.getName(), list.getName()))
+                    .forEach(list -> list.add(that.entries())
                 );
-                result.write();
+                factory.update();
                 break;
             }
             case REMOVE: {
@@ -190,6 +200,19 @@ public class SongBase {
                     .forEach(list -> list.remove(that.entries())
                 );
                 factory.update();
+                break;
+            }
+            case UNION: {
+                if (i >= args.length) throw new RuntimeException("Please supply input playlist or specify - for stdin");
+                PlaylistList factory = args2Factory(Arrays.copyOfRange(args, i, args.length), root, type);
+                if (root == null) root = factory.getBase();
+                Playlist result = Playlist.empty(System.out, root, type);
+                result.add(
+                    factory.stream()
+                        .peek(list -> System.err.format("SONGBASE: Add %s\n", list.getName()))
+                        .flatMap(list -> list.entries())
+                );
+                result.write();
                 break;
             }
             case INTERSECT: {
