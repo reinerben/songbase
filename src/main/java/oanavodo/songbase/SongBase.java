@@ -6,6 +6,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
+import java.util.Map;
+import java.util.TreeMap;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -242,6 +244,7 @@ public class SongBase {
                 if (!Files.isDirectory(to)) throw new RuntimeException("To folder not found: " + to.toString());
 
                 System.err.format("SONGBASE: Mapping '%s' -> '%s' based on %s\n", from.replaceAll("\\\\", "/"), into.toString().replaceAll("\\\\", "/"), that.getName());
+                Map<Path, Integer> counts = new TreeMap<>();
                 for (Playlist.Entry song : that.getEntries()) {
                     Path path = song.getFolder();
                     String interpret = song.getInterpret();
@@ -252,6 +255,8 @@ public class SongBase {
                         }
                         if (Files.isSameFile(path, newpath)) return;
                         Song dup = song.move(newpath);
+                        int count = counts.getOrDefault(newpath, 0);
+                        counts.put(newpath, count + 1);
                         if (dup != null) {
                             factory.move(song, dup);
                         }
@@ -259,6 +264,7 @@ public class SongBase {
                 }
                 factory.update();
                 //if (that.isChanged()) that.write();
+                counts.forEach((path, count) -> System.err.format("%s: %d\n", base.relativize(path).toString().replaceAll("\\\\", "/"), count));
                 break;
             }}
         }
