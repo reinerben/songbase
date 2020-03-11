@@ -12,6 +12,7 @@ public class PlaylistList {
 
     private Map<Path, Playlist> lists;
     private Path base;
+    private int stdios = 0;
 
     public PlaylistList(Path base, boolean walk, boolean onlycheck) {
         this.lists = new HashMap<>();
@@ -34,7 +35,7 @@ public class PlaylistList {
     }
 
     public boolean hasStdio() {
-        return lists.containsKey(null);
+        return (stdios > 0);
     }
 
     public Path getBase() {
@@ -47,11 +48,13 @@ public class PlaylistList {
 
     public void addPlaylist(Playlist list) {
         lists.put(list.getPath(), list);
+        if (list.isStdio()) stdios++;
         if (base == null) base = list.getBase();
     }
 
     public void removePlaylist(Playlist list) {
-        lists.remove(list.getPath());
+        Playlist that = lists.remove(list.getPath());
+        if (that.isStdio() && (stdios > 0)) stdios--;
     }
 
     public Stream<Playlist> stream() {
@@ -62,7 +65,7 @@ public class PlaylistList {
         lists.values().forEach(list -> list.move(prev, now));
     }
 
-    public void update() {
-        lists.values().stream().filter(list -> list.isChanged()).forEach(list -> list.write());
+    public void update(boolean sorted) {
+        lists.values().stream().filter(list -> list.isChanged()).forEach(list -> list.write(sorted));
     }
 }

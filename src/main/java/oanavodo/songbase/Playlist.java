@@ -15,9 +15,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 
@@ -32,20 +34,28 @@ public abstract class Playlist {
         protected InputStream input;
         protected OutputStream output;
 
-        public Data(Path path, Path parent, String name, String type, InputStream input, OutputStream output) {
+        public Data(Path path, Path parent, String type, InputStream input, OutputStream output) {
             this.path = path;
             this.parent = parent;
-            this.name = name;
             this.type = type;
             this.input = input;
             this.output = output;
+
+            if (path != null) {
+                name = path.getFileName().toString();
+            }
+            else if (input != null) {
+                name = "<stdin>";
+            }
+            else {
+                name = "<stdout>";
+            }
         }
     }
 
     protected Data data;
     protected final List<Entry> songs = new ArrayList<>();
     private boolean changed = false;
-    private boolean sorted = false;
 
     protected Playlist(Data data, boolean onlycheck) throws IOException {
         this.data = data;
@@ -54,25 +64,28 @@ public abstract class Playlist {
             System.err.format("PLAYLIST: reading %s\n", descr);
             fill(onlycheck);
         }
-        sort();
     }
 
     public static Playlist of(Path path, boolean onlycheck) {
+        return Playlist.of(path, null, onlycheck);
+    }
+
+    public static Playlist of(Path path, OutputStream output, boolean onlycheck) {
         path = path.toAbsolutePath();
         if (!Files.isRegularFile(path)) throw new RuntimeException("Playlist not found: " + path.toString());
         String name = path.getFileName().toString();
         int end = name.lastIndexOf(".");
         if (end == -1) end = name.length() - 1;
         String type = name.substring(end + 1).toLowerCase();
-        return create(new Data(path, path.getParent(), name, type, null, null), onlycheck);
+        return create(new Data(path, path.getParent(), type, null, output), onlycheck);
     }
 
     public static Playlist of(InputStream input, OutputStream output, Path parent, String type, boolean onlycheck) {
-        return create(new Data(null, parent, "<stdin>", type, input, output), onlycheck);
+        return create(new Data(null, parent, type, input, output), onlycheck);
     }
 
     public static Playlist empty(OutputStream output, Path parent, String type) {
-        return create(new Data(null, parent, "<new>", type, null, output), false);
+        return create(new Data(null, parent, type, null, output), false);
     }
 
     public static boolean isSupported(Path path) {
@@ -101,7 +114,7 @@ public abstract class Playlist {
     protected abstract void save() throws IOException;
 
     public boolean isStdio() {
-        return (data.path == null);
+        return (data.output != null);
     }
 
     public Path getBase() {
@@ -129,29 +142,18 @@ public abstract class Playlist {
     }
 
     public void add(Stream<? extends Song> adds) {
-        sort();
-        AtomicInteger lowest = new AtomicInteger(Integer.MAX_VALUE);
-        adds.forEach(song -> {
-            int index = Collections.binarySearch(songs, song);
-            if (index >= 0) return;
-            index = -index - 1;
-            Entry entry;
+        Stream<? extends Song> realadds = adds.filter(song -> songs.parallelStream().noneMatch(entry -> entry.equals(song)));
+        realadds.forEachOrdered(song -> {
             try {
-                entry = new Entry(data.parent.relativize(song.getPath()), index, Song.dryrun);
+                Entry entry = new Entry(data.parent.relativize(song.getPath()), songs.size(), Song.dryrun);
+                songs.add(entry);
+                changed = true;
+                System.err.format("%s: + %s, %s\n", data.name, entry.getFolder().toString().replace("\\", "/"), entry.getName());
             }
             catch (IllegalArgumentException ex) {
                 throw new RuntimeException("Song is outside of playlist base: " + song.getPath());
             }
-            songs.add(index, entry);
-            if (index < lowest.get()) lowest.set(index);
-            System.err.format("%s: + %s, %s\n", data.name, entry.getFolder().toString().replace("\\", "/"), entry.getName());
         });
-        if (lowest.get() < Integer.MAX_VALUE) {
-            for (int i = lowest.get() + 1; i < songs.size(); i++) {
-                songs.get(i).setIndex(i);
-            }
-            changed = true;
-        }
     }
 
     public void add(Song song) {
@@ -159,20 +161,24 @@ public abstract class Playlist {
     }
 
     public void remove(Stream<? extends Song> rems) {
-        sort();
+        Stream<Integer> realrems = rems.parallel()
+            .map(song -> songs.parallelStream().filter(entry -> entry.equals(song)).map(entry -> entry.getIndex()).findAny().orElse(-1))
+            .filter(index -> (index != -1))
+            .sorted();
+        AtomicInteger offset = new AtomicInteger(0);
         AtomicInteger lowest = new AtomicInteger(Integer.MAX_VALUE);
-        rems.forEach(song -> {
-            int index = Collections.binarySearch(songs, song);
-            if (index < 0) return;
-            Entry entry = songs.remove(index);
+        realrems.forEachOrdered(index -> {
+            index -= offset.get();
+            Entry entry = songs.remove((int)index);
             if (index < lowest.get()) lowest.set(index);
+            offset.incrementAndGet();
+            changed = true;
             System.err.format("%s: - %s, %s\n", data.name, entry.getFolder().toString().replace("\\", "/"), entry.getName());
         });
         if (lowest.get() < Integer.MAX_VALUE) {
             for (int i = lowest.get(); i < songs.size(); i++) {
                 songs.get(i).setIndex(i);
             }
-            changed = true;
         }
     }
 
@@ -181,13 +187,14 @@ public abstract class Playlist {
     }
 
     public void move(Song prev, Song now) {
-        songs.stream().filter(song -> song.equals(prev)).forEach((song) -> {
-            setSong(song.getIndex(), now.getPath());
-        });
+        songs.parallelStream()
+            .filter(song -> song.equals(prev))
+            .forEach((song) -> {
+                setSong(song.getIndex(), now.getPath());
+            });
     }
 
     public Stream<? extends Song> select(String search) {
-        sort();
         return songs.stream()
             .filter(song -> (
                 song.getFolder().toString().contains(search) ||
@@ -197,21 +204,20 @@ public abstract class Playlist {
     }
 
     public Stream<? extends Song> intersect(Playlist that) {
-        sort();
-        return that.songs.stream().filter(song -> (Collections.binarySearch(songs, song) >= 0));
+        return that.songs.stream().filter(ethat -> songs.parallelStream().anyMatch(ethis -> ethis.equals(ethat)));
     }
 
     public Stream<? extends Song> complement(Playlist that) {
-        sort();
-        return that.songs.stream().filter(song -> (Collections.binarySearch(songs, song) < 0));
+        return that.songs.stream().filter(ethat -> songs.parallelStream().noneMatch(ethis -> ethis.equals(ethat)));
     }
 
-    public void write() {
+    public void write(boolean sorted) {
         if ((data.path == null) && (data.output == null)) return;
-        System.err.format("PLAYLIST: writing %s\n", data.name);
+        String descr = (data.output != null) ? "<stdout>" : data.name;
+        System.err.format("PLAYLIST: writing %s\n", descr);
+        if (sorted) sort();
         try {
-            sort();
-            if (!dryrun || (data.path == null)) save();
+            if (!dryrun || (data.output != null)) save();
             changed = false;
         }
         catch (RuntimeException ex) {
@@ -222,22 +228,32 @@ public abstract class Playlist {
         }
     }
 
+    public void sort() {
+        songs.sort(Comparator.naturalOrder());
+        for (int i = 0; i < songs.size(); i++) {
+            songs.get(i).setIndex(i);
+        }
+        changed = true;
+    }
+
+    public void shuffle(int gap) {
+        ShuffleList list = new ShuffleList(gap);
+        songs.forEach(song -> list.add(song));
+        songs.clear();
+        while (!list.isEmpty()) {
+            Entry entry = list.getNext();
+            entry.setIndex(songs.size());
+            songs.add(entry);
+        }
+        changed = true;
+    }
+
     private Entry setSong(int index, Path path) {
         Entry entry = new Entry(data.parent.relativize(path), index, Song.dryrun);
         songs.set(index, entry);
         System.err.format("%s: = %s, %s\n", data.name, entry.getFolder().toString().replace("\\", "/"), entry.getName());
         changed = true;
-        sorted = false;
         return entry;
-    }
-
-    private void sort() {
-        if (sorted) return;
-        songs.sort(Comparator.naturalOrder());
-        for (int i = 0; i < songs.size(); i++) {
-            songs.get(i).setIndex(i);
-        }
-        sorted = true;
     }
 
     public class Entry extends Song {
@@ -263,8 +279,8 @@ public abstract class Playlist {
         }
 
         @Override
-        public Song move(Path newpath) {
-            Path newfile = moveIntern(newpath);
+        public Song move(Path newpath, boolean delete) {
+            Path newfile = moveIntern(newpath, delete);
             if (newfile == null) return null;
             return setSong(index, newfile);
         }
@@ -280,6 +296,105 @@ public abstract class Playlist {
         @Override
         public int compareTo(Song other) {
             return getPath().toString().compareToIgnoreCase(((Entry)other).getPath().toString());
+        }
+    }
+
+    private static class ShuffleList {
+
+        private static class Group extends ArrayList<Entry> {
+            private String name;
+            private int wait = 0;
+
+            private Group(String name) {
+                super();
+                this.name = name;
+            }
+
+            public String getName() {
+                return name;
+            }
+
+            public boolean isBlocked() {
+                return (wait > 0);
+            }
+
+            public int getBlocked() {
+                return wait;
+            }
+
+            public void setBlocked(int amount) {
+                wait = amount;
+            }
+
+            public void pass() {
+                if (wait > 0) wait--;
+            }
+        }
+
+        private Map<String, Group> base = new LinkedHashMap<>();
+        private Random rand = new Random();
+        private int same = 0;
+        private int count = 0;
+        private int gap = 0;
+        private int maxgap;
+
+        public ShuffleList(int gap) {
+            this.maxgap = gap;
+        }
+
+        public boolean isEmpty() {
+            return (count <= 0);
+        }
+
+        public void add(Entry entry) {
+            Group group = base.get(entry.getInterpret());
+            if (group == null) base.put(entry.getInterpret(), group = new Group(entry.getInterpret()));
+            group.add(entry);
+            count++;
+            if (same < group.size()) same = group.size();
+            gap = Math.min(maxgap, (count / same) - 1);
+        }
+
+        public Entry getNext() {
+//            int real = base.values().stream().mapToInt(group -> group.size()).sum();
+//            int blocks = base.values().stream().mapToInt(group -> group.isBlocked() ? 1 : 0).sum();
+//            System.err.format("count %d, real %d, blocks %d/%d gap %d\n", count, real, base.keySet().size(), blocks, gap);
+            if (count <= 0) return null;
+            int index = rand.nextInt(count);
+            Group found = null;
+            Group alter = null;
+            Group last = null;
+            int pointer = 0;
+            int offset = -1;
+            for (Group group : base.values()) {
+                int next = pointer + group.size();
+                int min = ((group.size() - 1) * gap) + group.size();
+                if (min >= count) {
+                    found = group;
+                    offset = -1;
+                }
+                if (group.isBlocked()) {
+                    if ((alter == null) || (alter.getBlocked() > group.getBlocked())) alter = group;
+                }
+                else {
+                    last = group;
+                    if ((found == null) && (index < next)) {
+                        found = group;
+                        offset = index - pointer;
+                    }
+                }
+                group.pass();
+                pointer = next;
+            }
+            if (found == null) found = last;
+            if (found == null) found = alter;
+            if (found == null) return null;
+            if (offset < 0) offset = rand.nextInt(found.size());
+            Entry next = found.remove(offset);
+            found.setBlocked(gap);
+            if (found.isEmpty()) base.remove(found.getName());
+            count--;
+            return next;
         }
     }
 

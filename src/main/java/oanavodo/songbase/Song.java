@@ -8,17 +8,12 @@ import java.nio.file.Path;
 public class Song implements Comparable<Song> {
     public static boolean dryrun = false;
     public static boolean check = true;
-    public static boolean delete = false;
 
     private Path path;
     private Path name;
     private String interpret;
     private String title;
     private boolean exists;
-
-    public Song(Path path) {
-        this(path, check);
-    }
 
     protected Song(Path path, boolean notcheck) {
         this.exists = Files.isRegularFile(path);
@@ -58,12 +53,12 @@ public class Song implements Comparable<Song> {
         return title;
     }
 
-    public Song move(Path newpath) {
-        Path newfile = moveIntern(newpath);
+    public Song move(Path newpath, boolean delete) {
+        Path newfile = moveIntern(newpath, delete);
         return (newfile != null) ? new Song(newfile, dryrun) : null;
     }
 
-    protected Path moveIntern(Path newpath) {
+    protected Path moveIntern(Path newpath, boolean delete) {
         if (path.equals(newpath)) return null;
         if (!Files.isDirectory(newpath)) throw new RuntimeException("New folder not found: " + newpath.toAbsolutePath().toString());
         Path newfile = newpath.resolve(name);
