@@ -11,6 +11,7 @@ import java.util.Map;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import oanavodo.songbase.Options.Check;
 
 public class SongBase {
 
@@ -63,18 +64,18 @@ public class SongBase {
     public static Playlist arg2Playlist(String arg, Path root, String type) {
         if (arg.equals("-")) {
             if (root == null) root = Paths.get("").toAbsolutePath();
-            return Playlist.of(System.in, System.out, root, type, false);
+            return Playlist.of(System.in, System.out, root, type);
         }
         OutputStream out = null;
         if (arg.startsWith("-")) {
             arg = arg.substring(1);
             out = System.out;
         }
-        return Playlist.of(Paths.get(arg), out, false);
+        return Playlist.of(Paths.get(arg), out);
     }
 
     public static PlaylistList args2Factory(String[] args, Path root, String type) {
-        PlaylistList factory = new PlaylistList(root, false, false);
+        PlaylistList factory = new PlaylistList(root, false);
         int i = 0;
         while (i < args.length) {
             Playlist list = arg2Playlist(args[i], root, type);
@@ -92,6 +93,7 @@ public class SongBase {
             System.setErr(new PrintStream(System.err, true, StandardCharsets.UTF_8));
 
             Operation command = Operation.MAP;
+            Options options = new Options();
             Path root = null;
             String from = null;
             Path into = null;
@@ -113,7 +115,7 @@ public class SongBase {
                 }
                 switch(option) {
                     case "--nocheck":
-                        Song.check = false;
+                        options.check = Check.NO;
                         break;
                     case "--nointerpret":
                         nointerpret = true;
@@ -125,9 +127,7 @@ public class SongBase {
                         sorted = true;
                         break;
                     case "--dryrun":
-                        PlaylistList.dryrun = true;
-                        Playlist.dryrun = true;
-                        Song.dryrun = true;
+                        options.dryrun = true;
                         break;
                     case "--help":
                         System.err.println(usage());
@@ -197,10 +197,15 @@ public class SongBase {
                 }
             }
 
+            PlaylistList.setOptions(options);
+            Playlist.setOptions(options);
+            Song.setOptions(options);
+
             switch(command) {
             case CHECKONLY:
+                options.check = Check.ONLY;
                 if (root == null) root = Paths.get("").toAbsolutePath();
-                new PlaylistList(root, true, true);
+                new PlaylistList(root, true);
                 break;
             case SELECT: {
                 if (i >= args.length) throw new RuntimeException("Please supply input playlist[s] or specify - for stdin");
@@ -242,9 +247,9 @@ public class SongBase {
                 }
                 else {
                     if (root == null) root = Paths.get("").toAbsolutePath();
-                    factory = new PlaylistList(root, true, false);
+                    factory = new PlaylistList(root, true);
                 }
-                Playlist that = Playlist.of(into, false);
+                Playlist that = Playlist.of(into);
                 factory.removePlaylist(that);
                 factory.stream()
                     .peek(list -> System.err.format("SONGBASE: Add %s to %s\n", that.getName(), list.getName()))
@@ -259,9 +264,9 @@ public class SongBase {
                 }
                 else {
                     if (root == null) root = Paths.get("").toAbsolutePath();
-                    factory = new PlaylistList(root, true, false);
+                    factory = new PlaylistList(root, true);
                 }
-                Playlist that = Playlist.of(into, false);
+                Playlist that = Playlist.of(into);
                 factory.removePlaylist(that);
                 factory.stream()
                     .peek(list -> System.err.format("SONGBASE: Remove %s from %s\n", that.getName(), list.getName()))
@@ -285,7 +290,7 @@ public class SongBase {
                 if (i >= args.length) throw new RuntimeException("Please supply input playlist or specify - for stdin");
                 Playlist thiz = arg2Playlist(args[i], root, type);
                 if (root == null) root = thiz.getBase();
-                Playlist that = Playlist.of(into, false);
+                Playlist that = Playlist.of(into);
                 Playlist result = Playlist.empty(System.out, root, type);
                 System.err.format("SONGBASE: Common songs of %s and %s\n", thiz.getName(), that.getName());
                 result.add(
@@ -298,7 +303,7 @@ public class SongBase {
                 if (i >= args.length) throw new RuntimeException("Please supply input playlist or specify - for stdin");
                 Playlist that = arg2Playlist(args[i], root, type);
                 if (root == null) root = that.getBase();
-                PlaylistList factory = new PlaylistList(root, true, false);
+                PlaylistList factory = new PlaylistList(root, true);
 
                 Path base = that.getBase();
                 if (from == null) from = "Neu";
@@ -328,7 +333,7 @@ public class SongBase {
                 }
                 factory.update(sorted);
                 //if (that.isChanged()) that.write();
-                counts.forEach((path, count) -> System.err.format("%s: %d\n", base.relativize(path).toString().replaceAll("\\\\", "/"), count));
+                counts.forEach((path, count) -> System.err.format("Moves to %s: %d\n", base.relativize(path).toString().replaceAll("\\\\", "/"), count));
                 break;
             }}
         }

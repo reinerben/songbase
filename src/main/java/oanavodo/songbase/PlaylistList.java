@@ -1,6 +1,5 @@
 package oanavodo.songbase;
 
-
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
@@ -8,20 +7,24 @@ import java.util.Map;
 import java.util.stream.Stream;
 
 public class PlaylistList {
-    public static boolean dryrun = false;
 
+    protected static Options options = new Options();
+
+    public static void setOptions(Options options) {
+        PlaylistList.options = options;
+    }
     private Map<Path, Playlist> lists;
     private Path base;
     private int stdios = 0;
 
-    public PlaylistList(Path base, boolean walk, boolean onlycheck) {
+    public PlaylistList(Path base, boolean walk) {
         this.lists = new HashMap<>();
         this.base = (base != null) ? base.toAbsolutePath() : null;
         if (walk && (base != null)) {
             try {
                 if (!Files.isDirectory(this.base)) throw new RuntimeException("Folder not found: " + this.base.toString());
                 Files.walk(this.base).filter(path -> Playlist.isSupported(path)).forEach(path -> {
-                    Playlist list = Playlist.of(path, onlycheck);
+                    Playlist list = Playlist.of(path);
                     lists.put(list.getPath(), list);
                 });
             }

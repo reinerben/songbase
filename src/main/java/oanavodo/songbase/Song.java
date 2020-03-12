@@ -1,13 +1,17 @@
 package oanavodo.songbase;
 
-
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import oanavodo.songbase.Options.Check;
 
 public class Song implements Comparable<Song> {
-    public static boolean dryrun = false;
-    public static boolean check = true;
+
+    protected static Options options = new Options();
+
+    public static void setOptions(Options options) {
+        Song.options = options;
+    }
 
     private Path path;
     private Path name;
@@ -15,9 +19,9 @@ public class Song implements Comparable<Song> {
     private String title;
     private boolean exists;
 
-    protected Song(Path path, boolean notcheck) {
+    protected Song(Path path) {
         this.exists = Files.isRegularFile(path);
-        if (!notcheck && check && !exists) throw new RuntimeException("Song not found: " + path.toAbsolutePath().toString());
+        if (!exists && !(options.dryrun || (options.check == Check.NO))) throw new RuntimeException("Song not found: " + path.toAbsolutePath().toString());
         this.path = path;
         name = path.getFileName();
         interpret = name.toString();
@@ -35,6 +39,7 @@ public class Song implements Comparable<Song> {
         this.name = other.name;
         this.interpret = other.interpret;
         this.title = other.title;
+        this.exists = other.exists;
     }
 
     public Path getPath() {
@@ -55,7 +60,7 @@ public class Song implements Comparable<Song> {
 
     public Song move(Path newpath, boolean delete) {
         Path newfile = moveIntern(newpath, delete);
-        return (newfile != null) ? new Song(newfile, dryrun) : null;
+        return (newfile != null) ? new Song(newfile) : null;
     }
 
     protected Path moveIntern(Path newpath, boolean delete) {
@@ -71,15 +76,15 @@ public class Song implements Comparable<Song> {
 
         try {
             System.err.format("SONG: Moving %s -> %s, %s\n", oldfolder, newfolder, getName());
-            if (!dryrun) Files.move(path, newfile);
-            if (dryrun && Files.exists(newfile)) throw new FileAlreadyExistsException(newfile.toString());
+            if (!options.dryrun) Files.move(path, newfile);
+            if (options.dryrun && Files.exists(newfile)) throw new FileAlreadyExistsException(newfile.toString());
         }
         catch (FileAlreadyExistsException ex) {
             System.err.format("SONG: Exists %s, %s\n", newfolder, getName());
             if (delete) {
                 System.err.format("SONG: Delete %s, %s\n", oldfolder, getName());
                 try {
-                    if (!dryrun) Files.delete(path);
+                    if (!options.dryrun) Files.delete(path);
                 }
                 catch (Exception ex2) {
                     throw new RuntimeException(ex2.getMessage(), ex2.getCause());
@@ -93,7 +98,7 @@ public class Song implements Comparable<Song> {
     }
 
     private int indexOfDiff(String a, String b) {
-        int i = 0;
+        int i;
         for (i = 0; (i < a.length()) && (i < b.length()); i++) {
             if (a.charAt(i) != b.charAt(i)) {
                 break;

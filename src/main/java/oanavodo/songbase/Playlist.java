@@ -1,6 +1,5 @@
 package oanavodo.songbase;
 
-
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
@@ -16,15 +15,12 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
+import oanavodo.songbase.Options.Check;
 
 public abstract class Playlist {
-    public static boolean dryrun = false;
 
     protected static class Data {
         protected Path path;
@@ -53,39 +49,45 @@ public abstract class Playlist {
         }
     }
 
+    protected static Options options = new Options();
+
+    public static void setOptions(Options options) {
+        Playlist.options = options;
+    }
+
     protected Data data;
     protected final List<Entry> songs = new ArrayList<>();
     private boolean changed = false;
 
-    protected Playlist(Data data, boolean onlycheck) throws IOException {
+    protected Playlist(Data data) throws IOException {
         this.data = data;
         if ((data.path != null) || (data.input != null)) {
             String descr = (data.path != null) ? data.path.toString() : data.name;
             System.err.format("PLAYLIST: reading %s\n", descr);
-            fill(onlycheck);
+            fill(options.check == Check.ONLY);
         }
     }
 
-    public static Playlist of(Path path, boolean onlycheck) {
-        return Playlist.of(path, null, onlycheck);
+    public static Playlist of(Path path) {
+        return Playlist.of(path, null);
     }
 
-    public static Playlist of(Path path, OutputStream output, boolean onlycheck) {
+    public static Playlist of(Path path, OutputStream output) {
         path = path.toAbsolutePath();
         if (!Files.isRegularFile(path)) throw new RuntimeException("Playlist not found: " + path.toString());
         String name = path.getFileName().toString();
         int end = name.lastIndexOf(".");
         if (end == -1) end = name.length() - 1;
         String type = name.substring(end + 1).toLowerCase();
-        return create(new Data(path, path.getParent(), type, null, output), onlycheck);
+        return create(new Data(path, path.getParent(), type, null, output));
     }
 
-    public static Playlist of(InputStream input, OutputStream output, Path parent, String type, boolean onlycheck) {
-        return create(new Data(null, parent, type, input, output), onlycheck);
+    public static Playlist of(InputStream input, OutputStream output, Path parent, String type) {
+        return create(new Data(null, parent, type, input, output));
     }
 
     public static Playlist empty(OutputStream output, Path parent, String type) {
-        return create(new Data(null, parent, type, null, output), false);
+        return create(new Data(null, parent, type, null, output));
     }
 
     public static boolean isSupported(Path path) {
@@ -93,13 +95,13 @@ public abstract class Playlist {
         return (name.endsWith(".m3u") || name.endsWith(".m3u8"));
     }
 
-    private static Playlist create(Data data, boolean onlycheck) {
+    private static Playlist create(Data data) {
         try {
             switch(data.type) {
             case "m3u":
-                return new M3u(data, onlycheck);
+                return new M3u(data);
             case "m3u8":
-                return new M3u8(data, onlycheck);
+                return new M3u8(data);
             default:
                 throw new RuntimeException("Playlist type not supported: " + data.type);
             }
@@ -145,7 +147,7 @@ public abstract class Playlist {
         Stream<? extends Song> realadds = adds.filter(song -> songs.parallelStream().noneMatch(entry -> entry.equals(song)));
         realadds.forEachOrdered(song -> {
             try {
-                Entry entry = new Entry(data.parent.relativize(song.getPath()), songs.size(), Song.dryrun);
+                Entry entry = new Entry(data.parent.relativize(song.getPath()), songs.size());
                 songs.add(entry);
                 changed = true;
                 System.err.format("%s: + %s, %s\n", data.name, entry.getFolder().toString().replace("\\", "/"), entry.getName());
@@ -217,7 +219,7 @@ public abstract class Playlist {
         System.err.format("PLAYLIST: writing %s\n", descr);
         if (sorted) sort();
         try {
-            if (!dryrun || (data.output != null)) save();
+            if (!options.dryrun || (data.output != null)) save();
             changed = false;
         }
         catch (RuntimeException ex) {
@@ -231,13 +233,16 @@ public abstract class Playlist {
     public void sort() {
         songs.sort(Comparator.naturalOrder());
         for (int i = 0; i < songs.size(); i++) {
-            songs.get(i).setIndex(i);
+            Entry song = songs.get(i);
+            if (song.getIndex() != i) {
+                song.setIndex(i);
+                changed = true;
+            }
         }
-        changed = true;
     }
 
     public void shuffle(int gap) {
-        ShuffleList list = new ShuffleList(gap);
+        ShuffleList<Entry> list = new ShuffleList(gap);
         songs.forEach(song -> list.add(song));
         songs.clear();
         while (!list.isEmpty()) {
@@ -249,7 +254,7 @@ public abstract class Playlist {
     }
 
     private Entry setSong(int index, Path path) {
-        Entry entry = new Entry(data.parent.relativize(path), index, Song.dryrun);
+        Entry entry = new Entry(data.parent.relativize(path), index);
         songs.set(index, entry);
         System.err.format("%s: = %s, %s\n", data.name, entry.getFolder().toString().replace("\\", "/"), entry.getName());
         changed = true;
@@ -261,8 +266,8 @@ public abstract class Playlist {
         private Path relpath;
         private int index;
 
-        private Entry(Path relfile, int index, boolean notcheck) {
-            super(data.parent.resolve(relfile), notcheck);
+        private Entry(Path relfile, int index) {
+            super(data.parent.resolve(relfile));
             this.relpath = relfile.getParent();
             this.index = index;
         }
@@ -299,109 +304,10 @@ public abstract class Playlist {
         }
     }
 
-    private static class ShuffleList {
-
-        private static class Group extends ArrayList<Entry> {
-            private String name;
-            private int wait = 0;
-
-            private Group(String name) {
-                super();
-                this.name = name;
-            }
-
-            public String getName() {
-                return name;
-            }
-
-            public boolean isBlocked() {
-                return (wait > 0);
-            }
-
-            public int getBlocked() {
-                return wait;
-            }
-
-            public void setBlocked(int amount) {
-                wait = amount;
-            }
-
-            public void pass() {
-                if (wait > 0) wait--;
-            }
-        }
-
-        private Map<String, Group> base = new LinkedHashMap<>();
-        private Random rand = new Random();
-        private int same = 0;
-        private int count = 0;
-        private int gap = 0;
-        private int maxgap;
-
-        public ShuffleList(int gap) {
-            this.maxgap = gap;
-        }
-
-        public boolean isEmpty() {
-            return (count <= 0);
-        }
-
-        public void add(Entry entry) {
-            Group group = base.get(entry.getInterpret());
-            if (group == null) base.put(entry.getInterpret(), group = new Group(entry.getInterpret()));
-            group.add(entry);
-            count++;
-            if (same < group.size()) same = group.size();
-            gap = Math.min(maxgap, (count / same) - 1);
-        }
-
-        public Entry getNext() {
-//            int real = base.values().stream().mapToInt(group -> group.size()).sum();
-//            int blocks = base.values().stream().mapToInt(group -> group.isBlocked() ? 1 : 0).sum();
-//            System.err.format("count %d, real %d, blocks %d/%d gap %d\n", count, real, base.keySet().size(), blocks, gap);
-            if (count <= 0) return null;
-            int index = rand.nextInt(count);
-            Group found = null;
-            Group alter = null;
-            Group last = null;
-            int pointer = 0;
-            int offset = -1;
-            for (Group group : base.values()) {
-                int next = pointer + group.size();
-                int min = ((group.size() - 1) * gap) + group.size();
-                if (min >= count) {
-                    found = group;
-                    offset = -1;
-                }
-                if (group.isBlocked()) {
-                    if ((alter == null) || (alter.getBlocked() > group.getBlocked())) alter = group;
-                }
-                else {
-                    last = group;
-                    if ((found == null) && (index < next)) {
-                        found = group;
-                        offset = index - pointer;
-                    }
-                }
-                group.pass();
-                pointer = next;
-            }
-            if (found == null) found = last;
-            if (found == null) found = alter;
-            if (found == null) return null;
-            if (offset < 0) offset = rand.nextInt(found.size());
-            Entry next = found.remove(offset);
-            found.setBlocked(gap);
-            if (found.isEmpty()) base.remove(found.getName());
-            count--;
-            return next;
-        }
-    }
-
     private static class M3u extends Playlist {
 
-        protected M3u(Data data, boolean onlycheck) throws IOException {
-            super(data, onlycheck);
+        protected M3u(Data data) throws IOException {
+            super(data);
         }
 
         @Override
@@ -421,7 +327,7 @@ public abstract class Playlist {
                     line = line.replace("\\", "/");
                     try {
                         int c = count.getAndIncrement();
-                        songs.add(new Entry(Paths.get(line), c, false));
+                        songs.add(new Entry(Paths.get(line), c));
                     }
                     catch (Exception ex) {
                         if (!onlycheck) throw ex;
@@ -447,8 +353,8 @@ public abstract class Playlist {
 
     private static class M3u8 extends M3u {
 
-        protected M3u8(Data data, boolean onlycheck) throws IOException {
-            super(data, onlycheck);
+        protected M3u8(Data data) throws IOException {
+            super(data);
         }
 
         @Override
