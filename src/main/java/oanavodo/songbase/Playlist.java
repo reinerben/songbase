@@ -325,6 +325,7 @@ public abstract class Playlist {
                     if (line.isEmpty()) return;
                     if (line.startsWith("#")) return;
                     line = line.replace("\\", "/");
+                    line = line.replace("%20", " ");
                     try {
                         int c = count.getAndIncrement();
                         songs.add(new Entry(Paths.get(line), c));

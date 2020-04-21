@@ -57,6 +57,7 @@ public class PlaylistList {
 
     public void removePlaylist(Playlist list) {
         Playlist that = lists.remove(list.getPath());
+        if (that == null) return;
         if (that.isStdio() && (stdios > 0)) stdios--;
     }
 
