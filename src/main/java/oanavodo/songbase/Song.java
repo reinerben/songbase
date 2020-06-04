@@ -22,7 +22,7 @@ public class Song implements Comparable<Song> {
     protected Song(Path path) {
         this.exists = Files.isRegularFile(path);
         if (!exists && !(options.dryrun || (options.check == Check.NO))) throw new RuntimeException("Song not found: " + path.toAbsolutePath().toString());
-        this.path = path;
+        this.path = path.normalize();
         name = path.getFileName();
         interpret = name.toString();
         int end = interpret.lastIndexOf(".");
