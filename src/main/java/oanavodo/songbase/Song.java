@@ -5,6 +5,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import oanavodo.songbase.Options.Check;
 
+/**
+ * Represents a song with its path, interpret and title.
+ * Currently interpret and title are extracted from filename with a fix format.
+ * @author Reiner
+ */
 public class Song implements Comparable<Song> {
 
     protected static Options options = new Options();

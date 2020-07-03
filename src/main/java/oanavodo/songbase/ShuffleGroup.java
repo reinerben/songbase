@@ -2,6 +2,11 @@ package oanavodo.songbase;
 
 import java.util.ArrayList;
 
+/**
+ * An array list decorated by a block counter.
+ * The counter is decremented each time method pass is called.
+ * @author Reiner
+ */
 public class ShuffleGroup<T> extends ArrayList<T> {
 
     private String name;

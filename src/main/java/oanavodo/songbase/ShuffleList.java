@@ -4,6 +4,12 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Random;
 
+/**
+ * Used to shuffle a list of songs with specified minimal gap between songs of same interpret.
+ * The songs are sorted into separate lists according their interpret and then mixed up to a random order
+ * where songs of same interpret are tried to distribute with some distances to each other.
+ * @author Reiner
+ */
 public class ShuffleList<T extends Song> {
 
     private Map<String, ShuffleGroup<T>> base = new LinkedHashMap<>();

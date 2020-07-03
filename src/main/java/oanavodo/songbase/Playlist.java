@@ -20,8 +20,24 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 import oanavodo.songbase.Options.Check;
 
+/**
+ * Represents a playlist.
+ * Since there are several playlist formats this is a abstract base class and have to be subclassed
+ * by specific playlist type classes which implements fill and save methods.
+ * A playlist can be read/written from/to a file or to an input/output stream.
+ * @author Reiner
+ */
 public abstract class Playlist {
 
+    @FunctionalInterface
+    public interface IOFunction<T, R> {
+        R apply(T arg) throws IOException;
+    }
+
+    /**
+     * Encapsulated playlist members.
+     * Why? subclass constructors need not to be changed if arguments change
+     */
     protected static class Data {
         protected Path path;
         protected Path parent;
@@ -54,20 +70,7 @@ public abstract class Playlist {
     public static void setOptions(Options options) {
         Playlist.options = options;
     }
-
-    protected Data data;
-    protected final List<Entry> songs = new ArrayList<>();
-    private boolean changed = false;
-
-    protected Playlist(Data data) throws IOException {
-        this.data = data;
-        if ((data.path != null) || (data.input != null)) {
-            String descr = (data.path != null) ? data.path.toString() : data.name;
-            System.err.format("PLAYLIST: reading %s\n", descr);
-            fill(options.check == Check.ONLY);
-        }
-    }
-
+    
     public static Playlist of(Path path) {
         return Playlist.of(path, null);
     }
@@ -90,24 +93,46 @@ public abstract class Playlist {
         return create(new Data(null, parent, type, null, output));
     }
 
-    public static boolean isSupported(Path path) {
-        String name = path.getFileName().toString();
-        return (name.endsWith(".m3u") || name.endsWith(".m3u8"));
+    /* used for creation and support check */
+    private static IOFunction<Data, Playlist> getCreater(String type) {
+        switch(type) {
+        case "m3u":
+            return (data) -> new M3u(data);
+        case "m3u8":
+            return (data) -> new M3u8(data);
+        default:
+            return null;
+        }
     }
 
     private static Playlist create(Data data) {
+        IOFunction<Data, Playlist> creater = getCreater(data.type);
+        if (creater == null) throw new RuntimeException("Playlist type not supported: " + data.type);
         try {
-            switch(data.type) {
-            case "m3u":
-                return new M3u(data);
-            case "m3u8":
-                return new M3u8(data);
-            default:
-                throw new RuntimeException("Playlist type not supported: " + data.type);
-            }
+            return creater.apply(data);
         }
         catch (IOException ex) {
             throw new RuntimeException(ex.getMessage(), ex.getCause());
+        }
+    }
+
+    public static boolean isSupported(Path path) {
+        String name = path.getFileName().toString();
+        int pos = name.lastIndexOf('.');
+        if (pos > 0) name = name.substring(pos + 1);
+        return (getCreater(name) != null);
+    }
+
+    protected Data data;
+    protected final List<Entry> songs = new ArrayList<>();
+    private boolean changed = false;
+
+    protected Playlist(Data data) throws IOException {
+        this.data = data;
+        if ((data.path != null) || (data.input != null)) {
+            String descr = (data.path != null) ? data.path.toString() : data.name;
+            System.err.format("PLAYLIST: reading %s\n", descr);
+            fill(options.check == Check.ONLY);
         }
     }
 
@@ -261,6 +286,10 @@ public abstract class Playlist {
         return entry;
     }
 
+    /**
+     * Inner class with represents a song.
+     * Holds position and the path relative to the playlist location.
+     */
     public class Entry extends Song {
 
         private Path relpath;
@@ -304,6 +333,10 @@ public abstract class Playlist {
         }
     }
 
+    /**
+     * Intern subclass represents m3u (iso8859-1) playlists.
+     * Currently #EXT lines are not supported
+     */
     private static class M3u extends Playlist {
 
         protected M3u(Data data) throws IOException {
@@ -352,6 +385,10 @@ public abstract class Playlist {
         }
     }
 
+    /**
+     * Intern subclass represents m3u8 (utt-8) playlists.
+     * Currently #EXT lines are not supported
+     */
     private static class M3u8 extends M3u {
 
         protected M3u8(Data data) throws IOException {

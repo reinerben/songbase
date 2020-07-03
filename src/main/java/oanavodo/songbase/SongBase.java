@@ -190,7 +190,7 @@ public class SongBase {
                     case "--remove=":
                     case "--intersect=":
                         into = Paths.get(value);
-                        command = Operation.valueOf(option.substring(2).toUpperCase());
+                        command = Operation.valueOf(option.substring(2).replace("=", "").toUpperCase());
                         break;
                     default:
                         throw new RuntimeException("Invalid option: " + option);

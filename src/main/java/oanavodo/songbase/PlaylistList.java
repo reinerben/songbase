@@ -6,6 +6,11 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Stream;
 
+/**
+ * Represents a (possibly empty) list of playlists.
+ * It allows to update a change in song name or path in all affected playlists.
+ * @author Reiner
+ */
 public class PlaylistList {
 
     protected static Options options = new Options();
