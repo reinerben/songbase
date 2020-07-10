@@ -26,7 +26,7 @@ public class Song implements Comparable<Song> {
 
     protected Song(Path path) {
         this.exists = Files.isRegularFile(path);
-        if (!exists && !(options.dryrun || (options.check == Check.NO))) throw new RuntimeException("Song not found: " + path.toAbsolutePath().toString());
+        if (!exists && !(options.isDryrun() || (options.getCheck() == Check.NO))) throw new RuntimeException("Song not found: " + path.toAbsolutePath().toString());
         this.path = path.normalize();
         name = path.getFileName();
         interpret = name.toString();
@@ -81,15 +81,15 @@ public class Song implements Comparable<Song> {
 
         try {
             System.err.format("SONG: Moving %s -> %s, %s\n", oldfolder, newfolder, getName());
-            if (!options.dryrun) Files.move(path, newfile);
-            if (options.dryrun && Files.exists(newfile)) throw new FileAlreadyExistsException(newfile.toString());
+            if (!options.isDryrun()) Files.move(path, newfile);
+            if (options.isDryrun() && Files.exists(newfile)) throw new FileAlreadyExistsException(newfile.toString());
         }
         catch (FileAlreadyExistsException ex) {
             System.err.format("SONG: Exists %s, %s\n", newfolder, getName());
             if (delete) {
                 System.err.format("SONG: Delete %s, %s\n", oldfolder, getName());
                 try {
-                    if (!options.dryrun) Files.delete(path);
+                    if (!options.isDryrun()) Files.delete(path);
                 }
                 catch (Exception ex2) {
                     throw new RuntimeException(ex2.getMessage(), ex2.getCause());

@@ -8,6 +8,22 @@ public class Options {
 
     public static enum Check { NO, YES, ONLY };
 
-    public Check check = Check.YES;
-    public boolean dryrun = false;
+    private Check check = Check.YES;
+    private boolean dryrun = false;
+
+    public Check getCheck() {
+        return check;
+    }
+
+    public void setCheck(Check check) {
+        this.check = check;
+    }
+
+    public boolean isDryrun() {
+        return dryrun;
+    }
+
+    public void setDryrun(boolean dryrun) {
+        this.dryrun = dryrun;
+    }
 }

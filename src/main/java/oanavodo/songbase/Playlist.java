@@ -70,7 +70,7 @@ public abstract class Playlist {
     public static void setOptions(Options options) {
         Playlist.options = options;
     }
-    
+
     public static Playlist of(Path path) {
         return Playlist.of(path, null);
     }
@@ -132,7 +132,7 @@ public abstract class Playlist {
         if ((data.path != null) || (data.input != null)) {
             String descr = (data.path != null) ? data.path.toString() : data.name;
             System.err.format("PLAYLIST: reading %s\n", descr);
-            fill(options.check == Check.ONLY);
+            fill(options.getCheck() == Check.ONLY);
         }
     }
 
@@ -244,7 +244,7 @@ public abstract class Playlist {
         System.err.format("PLAYLIST: writing %s\n", descr);
         if (sorted) sort();
         try {
-            if (!options.dryrun || (data.output != null)) save();
+            if (!options.isDryrun() || (data.output != null)) save();
             changed = false;
         }
         catch (RuntimeException ex) {

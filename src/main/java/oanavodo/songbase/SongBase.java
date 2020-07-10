@@ -115,7 +115,7 @@ public class SongBase {
                 }
                 switch(option) {
                     case "--nocheck":
-                        options.check = Check.NO;
+                        options.setCheck(Check.NO);
                         break;
                     case "--nointerpret":
                         nointerpret = true;
@@ -127,7 +127,7 @@ public class SongBase {
                         sorted = true;
                         break;
                     case "--dryrun":
-                        options.dryrun = true;
+                        options.setDryrun(true);
                         break;
                     case "--help":
                         System.err.println(usage());
@@ -203,7 +203,7 @@ public class SongBase {
 
             switch(command) {
             case CHECKONLY:
-                options.check = Check.ONLY;
+                options.setCheck(Check.ONLY);
                 if (root == null) root = Paths.get("").toAbsolutePath();
                 new PlaylistList(root, true);
                 break;
