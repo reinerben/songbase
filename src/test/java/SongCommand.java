@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.io.PrintStream;
 import java.io.UncheckedIOException;
 import java.net.URISyntaxException;
+import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -21,7 +22,7 @@ import org.opentest4j.AssertionFailedError;
 
 public class SongCommand {
 
-    private static Pattern cmdPattern = Pattern.compile("(2?[<>-]?)%([^%]+)%|(\\S+)");
+    private static Pattern cmdPattern = Pattern.compile("([^\\s%]*)%([^%]+)%|(\\S+)");
 
     protected static class FileCheck {
         private String name;
@@ -58,28 +59,35 @@ public class SongCommand {
         }
 
         Matcher m = cmdPattern.matcher(command);
+        StringBuilder log = new StringBuilder("songbase");
         args = m.results()
             .map(result -> (result.group(2) != null) ? provideArgument(name, result.group(1), result.group(2)) : result.group(3))
-            .filter(String::isEmpty)
+            .peek(arg -> log.append(" ").append(arg))
+            .filter(arg -> !(arg.startsWith("<") || arg.startsWith(">") || arg.startsWith("2>")))
             .toArray(String[]::new);
+        System.err.format("TEST(%s): %s\n", name, log.toString());
     }
 
-    protected String provideArgument(String name, String io, String arg) {
-        Path res = null;
-        Path inres = null;
-        Path outres = null;
-        String out = "";
-
+    protected String provideArgument(String name, String prefix, String arg) {
         String[] parts = arg.split("=", 2);
         String left = parts[0];
         String right = (parts.length > 1) ? parts[1] : null;
+        // no file names
+        if (left.isEmpty() && ((right == null) || right.isEmpty())) throw new IllegalArgumentException("Missing file name");
+        if (right != null) {
+            if (left.isEmpty()) left = right;
+            if (right.isEmpty()) right = left;
+        }
+        else if ("run".equals(left)) {
+            return prefix + rundir.toString();
+        }
+        Path res = null;
+        Path inres = null;
+        Path outres = null;
         try {
-            if ((right == null) && "root".equals(left)) return rundir.toString();
-
-            if (left.isEmpty()) {
-                if ((right == null) || right.isEmpty()) throw new IllegalArgumentException("Missing file name");
-                left = "out_" + name;
-                inres = Paths.get(left);
+            if (">".equals(prefix)) {
+                res = Paths.get(left);
+                inres = rundir.resolve(Paths.get("out_" + res.getFileName().toString()));
             }
             else {
                 res = SongBaseTest.resourcePath("/" + left);
@@ -88,18 +96,12 @@ public class SongCommand {
                 createSongs(inres);
             }
             if (right != null) {
-                if (right.isEmpty()) {
-                    outres = cmpdir.resolve(inres.getFileName().toString());
-                    Files.copy(res, outres);
-                }
-                else {
-                    res = SongBaseTest.resourcePath("/" + right);
-                    outres = cmpdir.resolve("out_" + res.getFileName().toString());
-                    Files.copy(res, outres);
-                }
+                res = SongBaseTest.resourcePath("/" + right);
+                outres = cmpdir.resolve("cmp_" + res.getFileName().toString());
+                Files.copy(res, outres);
             }
             if (outres != null) checks.add(new FileCheck(left, inres, outres));
-            switch(io) {
+            switch(prefix) {
             case "<":
                 usedIO.setIn(new FileInputStream(inres.toFile()));
                 break;
@@ -109,14 +111,6 @@ public class SongCommand {
             case "2>":
                 usedIO.setErr(new PrintStream(inres.toFile()));
                 break;
-            case "-":
-                out = "-" + inres.getFileName().toString();
-                break;
-            case "":
-                out = inres.getFileName().toString();
-                break;
-            default:
-                throw new IllegalArgumentException("Illegal io mode: " + io);
             }
         }
         catch (IOException e) {
@@ -125,7 +119,7 @@ public class SongCommand {
         catch (URISyntaxException e) {
             throw new RuntimeException(e);
         }
-        return out;
+        return prefix + SongBaseTest.basedir.relativize(inres).toString();
     }
 
     public void call() {
@@ -140,17 +134,24 @@ public class SongCommand {
     }
 
     protected void checkResults(String name, List<FileCheck> checks) {
+        StringBuilder log = new StringBuilder("");
         checks.forEach(check -> {
             try {
                 if (!Files.exists(check.left)) {
+                    log.append(" FAIL");
                     throw new AssertionFailedError(String.format("File %s has not been created", check.name));
                 }
                 if (Files.mismatch(check.left, check.right) != -1L) {
+                    log.append(" FAIL");
                     throw new AssertionFailedError(String.format("Content of file %s is not correct", check.name));
                 }
+                log.append(" OK");
             }
             catch (IOException e) {
                 throw new UncheckedIOException(e);
+            }
+            finally {
+                System.err.format("RESULT(%s):%s\n", name, log.toString());
             }
         });
     }
@@ -166,6 +167,7 @@ public class SongCommand {
                 Files.createDirectories(spath.getParent());
                 Files.createFile(spath);
             }
+            catch (FileAlreadyExistsException e) {}
             catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
@@ -174,7 +176,7 @@ public class SongCommand {
 
     private void cleanDirectory(Path dir) throws IOException {
         try (Stream<Path> s = Files.walk(dir)) {
-            s.forEach(path -> path.toFile().delete());
+            s.filter(path -> !path.equals(dir)).forEach(path -> path.toFile().delete());
         }
     }
 }

@@ -315,14 +315,14 @@ public class SongBase {
                 System.err.format("SONGBASE: Mapping '%s' -> '%s' based on %s\n", from.replaceAll("\\\\", "/"), into.toString().replaceAll("\\\\", "/"), that.getName());
                 Map<Path, Integer> counts = new TreeMap<>();
                 for (Playlist.Entry song : that.getEntries()) {
-                    Path path = song.getFolder();
+                    String folder = song.getFolder();
                     String interpret = song.getInterpret();
-                    if (path.toString().equals(from)) {
+                    if (folder.equals(from)) {
                         Path newpath = base.resolve(interpret);
                         if (nointerpret || !Files.isDirectory(newpath)) {
                             newpath = to;
                         }
-                        if (Files.isSameFile(path, newpath)) return;
+                        if (Files.isSameFile(Paths.get(folder), newpath)) return;
                         Song dup = song.move(newpath, delete);
                         int count = counts.getOrDefault(newpath, 0);
                         counts.put(newpath, count + 1);

@@ -175,7 +175,7 @@ public abstract class Playlist {
                 Entry entry = new Entry(data.parent.relativize(song.getPath()), songs.size());
                 songs.add(entry);
                 changed = true;
-                System.err.format("%s: + %s, %s\n", data.name, entry.getFolder().toString().replace("\\", "/"), entry.getName());
+                System.err.format("%s: + %s, %s\n", data.name, entry.getFolder(), entry.getName());
             }
             catch (IllegalArgumentException ex) {
                 throw new RuntimeException("Song is outside of playlist base: " + song.getPath());
@@ -200,7 +200,7 @@ public abstract class Playlist {
             if (index < lowest.get()) lowest.set(index);
             offset.incrementAndGet();
             changed = true;
-            System.err.format("%s: - %s, %s\n", data.name, entry.getFolder().toString().replace("\\", "/"), entry.getName());
+            System.err.format("%s: - %s, %s\n", data.name, entry.getFolder(), entry.getName());
         });
         if (lowest.get() < Integer.MAX_VALUE) {
             for (int i = lowest.get(); i < songs.size(); i++) {
@@ -224,7 +224,7 @@ public abstract class Playlist {
     public Stream<? extends Song> select(String search) {
         return songs.stream()
             .filter(song -> (
-                song.getFolder().toString().contains(search) ||
+                song.getFolder().contains(search) ||
                 song.getInterpret().contains(search) ||
                 song.getTitle().contains(search)
             ));
@@ -281,7 +281,7 @@ public abstract class Playlist {
     private Entry setSong(int index, Path path) {
         Entry entry = new Entry(data.parent.relativize(path), index);
         songs.set(index, entry);
-        System.err.format("%s: = %s, %s\n", data.name, entry.getFolder().toString().replace("\\", "/"), entry.getName());
+        System.err.format("%s: = %s, %s\n", data.name, entry.getFolder(), entry.getName());
         changed = true;
         return entry;
     }
@@ -301,13 +301,13 @@ public abstract class Playlist {
             this.index = index;
         }
 
-        public Path getFolder() {
-            return relpath;
+        public String getFolder() {
+            return (relpath != null) ? relpath.toString().replace("\\", "/") : "";
         }
 
         public String getEntry() {
-            String entry = relpath.toString().replace("\\", "/");
-            entry += "/";
+            String entry = getFolder();
+            if (!entry.isEmpty()) entry += "/";
             entry += getName().toString();
             return entry;
         }
