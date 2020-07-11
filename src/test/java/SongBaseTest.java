@@ -26,17 +26,16 @@ public class SongBaseTest {
     @TestFactory
     DynamicTest[] allTests() {
         return new DynamicTest[] {
-//            songTest("shuffle1", "--shuffle -%Playsorted1.m3u% >%Playmixed1.m3u%"),
-//            songTest("shuffle2", "--shuffle -%Playsorted2.m3u% >%Playmixed2.m3u%"),
-//            songTest("shuffle3", "--shuffle -%Playsorted3.m3u% >%Playmixed3.m3u%"),
-//            songTest("shuffle4", "--shuffle -%Playsorted1.m3u8% >%Playmixed1.m3u8%"),
-//            songTest("shuffle5", "--shuffle -%Playsorted2.m3u8% >%Playmixed2.m3u8%"),
-//            songTest("shuffle6", "--shuffle -%Playsorted3.m3u8% >%Playmixed3.m3u8%"),
-            songTest("sort1", "--sort  %Playmixed1.m3u=Playsorted1.m3u% %Playmixed2.m3u8=Playsorted2.m3u8%"),
-            songTest("sort2", "--sort -%Playmixed1.m3u=%   >%=Playsorted1.m3u%"),
-            songTest("sort3", "--sort -%Playmixed2.m3u8=%  >%=Playsorted2.m3u8%"),
-            songTest("sort4", "--sort --base=%run% --type=m3u  - <%Playmixed1.m3u%  >%=Playsorted1.m3u%"),
-            songTest("sort5", "--sort --base=%run% --type=m3u8 - <%Playmixed2.m3u8% >%=Playsorted2.m3u8%"),
+            songTest("shuffle1", "--shuffle %Playsorted1.m3u% %Playsorted2.m3u8%"),
+            songTest("sort1", "--sort  %shuffle1:Playsorted1.m3u=Playsorted1.m3u% %shuffle1:Playsorted2.m3u8=Playsorted2.m3u8%"),
+            songTest("shuffle2", "--shuffle -%Playsorted1.m3u% >%Playmixed1.m3u%"),
+            songTest("shuffle3", "--shuffle -%Playsorted2.m3u8% >%Playmixed2.m3u8%"),
+            songTest("sort2", "--sort -%shuffle2:Playmixed1.m3u=%   >%=Playsorted1.m3u%"),
+            songTest("sort3", "--sort -%shuffle3:Playmixed2.m3u8=%  >%=Playsorted2.m3u8%"),
+            songTest("shuffle4", " --base=%run% --shuffle --type=m3u  - <%Playsorted1.m3u% >%Playmixed1.m3u%"),
+            songTest("shuffle5", " --base=%run% --shuffle --type=m3u8 - <%Playsorted2.m3u8% >%Playmixed2.m3u8%"),
+            songTest("sort4", " --base=%run% --sort --type=m3u  - <%shuffle4:Playmixed1.m3u%  >%=Playsorted1.m3u%"),
+            songTest("sort5", " --base=%run% --sort --type=m3u8 - <%shuffle5:Playmixed2.m3u8% >%=Playsorted2.m3u8%"),
         };
     }
 

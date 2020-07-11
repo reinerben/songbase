@@ -47,10 +47,8 @@ public class SongCommand {
     public SongCommand(String name, String command) {
         this.name = name;
         try {
-            Path parent = Files.createDirectories(SongBaseTest.testdir);
-            parent = Files.createDirectories(parent.resolve(name));
-            rundir = Files.createDirectories(parent.resolve("run"));
-            cmpdir = Files.createDirectories(parent.resolve("cmp"));
+            rundir = Files.createDirectories(getRundir(name));
+            cmpdir = Files.createDirectories(getCmpdir(name));
             cleanDirectory(rundir);
             cleanDirectory(cmpdir);
         }
@@ -68,15 +66,28 @@ public class SongCommand {
         System.err.format("TEST(%s): %s\n", name, log.toString());
     }
 
+    public final Path getRundir(String name) {
+        return SongBaseTest.testdir.resolve(name).resolve("run");
+    }
+
+    public final Path getCmpdir(String name) {
+        return SongBaseTest.testdir.resolve(name).resolve("cmp");
+    }
+
     protected String provideArgument(String name, String prefix, String arg) {
-        String[] parts = arg.split("=", 2);
+        String ref = null;
+        String[] parts = arg.split(":", 2);
+        if (parts.length > 1) {
+            ref = parts[0];
+            arg = parts[1];
+        }
+        parts = arg.split("=", 2);
         String left = parts[0];
         String right = (parts.length > 1) ? parts[1] : null;
         // no file names
         if (left.isEmpty() && ((right == null) || right.isEmpty())) throw new IllegalArgumentException("Missing file name");
         if (right != null) {
             if (left.isEmpty()) left = right;
-            if (right.isEmpty()) right = left;
         }
         else if ("run".equals(left)) {
             return prefix + rundir.toString();
@@ -90,13 +101,19 @@ public class SongCommand {
                 inres = rundir.resolve(Paths.get("out_" + res.getFileName().toString()));
             }
             else {
-                res = SongBaseTest.resourcePath("/" + left);
+                if (ref == null) {
+                    res = SongBaseTest.resourcePath("/" + left);
+                }
+                else {
+                    res = getRundir(ref).resolve("out_" + left);
+                    if (!Files.exists(res)) res = getRundir(ref).resolve("in_" + left);
+                }
                 inres = rundir.resolve("in_" + res.getFileName().toString());
                 Files.copy(res, inres);
                 createSongs(inres);
             }
             if (right != null) {
-                res = SongBaseTest.resourcePath("/" + right);
+                if (!right.isEmpty()) res = SongBaseTest.resourcePath("/" + right);
                 outres = cmpdir.resolve("cmp_" + res.getFileName().toString());
                 Files.copy(res, outres);
             }
