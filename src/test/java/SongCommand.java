@@ -21,17 +21,15 @@ import org.opentest4j.AssertionFailedError;
 
 public class SongCommand {
 
-    private static Pattern cmdPattern = Pattern.compile("(2?[<>-]?)%([=!*])([^%]+)%|(\\S+)");
+    private static Pattern cmdPattern = Pattern.compile("(2?[<>-]?)%([^%]+)%|(\\S+)");
 
     protected static class FileCheck {
         private String name;
-        private String mode;
         private Path left;
         private Path right;
 
-        public FileCheck(String name, String mode, Path left, Path right) {
+        public FileCheck(String name, Path left, Path right) {
             this.name = name;
-            this.mode = mode;
             this.left = left;
             this.right = right;
         }
@@ -61,47 +59,46 @@ public class SongCommand {
 
         Matcher m = cmdPattern.matcher(command);
         args = m.results()
-            .map(result -> (result.group(3) != null) ? provideArgument(name, result.group(1), result.group(2), result.group(3)) : result.group(4))
+            .map(result -> (result.group(2) != null) ? provideArgument(name, result.group(1), result.group(2)) : result.group(3))
             .filter(String::isEmpty)
             .toArray(String[]::new);
     }
 
-    protected String provideArgument(String name, String io, String mode, String arg) {
-        Path res;
-        Path inres;
-        Path outres;
+    protected String provideArgument(String name, String io, String arg) {
+        Path res = null;
+        Path inres = null;
+        Path outres = null;
         String out = "";
+
+        String[] parts = arg.split("=", 2);
+        String left = parts[0];
+        String right = (parts.length > 1) ? parts[1] : null;
         try {
-            switch(mode) {
-            case "=":
-                res = SongBaseTest.resourcePath("/" + arg);
-                inres = rundir.resolve("in_" + res.getFileName().toString());
-                Files.copy(res, inres);
-                createSongs(inres);
-                outres = cmpdir.resolve("in_" + res.getFileName().toString());
-                Files.copy(res, outres);
-                break;
-            case "!":
-                res = SongBaseTest.resourcePath("/" + arg);
-                inres = rundir.resolve("in_" + res.getFileName().toString());
-                Files.copy(res, inres);
-                createSongs(inres);
-                res = SongBaseTest.resourcePath("/" + name + "/" + arg);
-                outres = cmpdir.resolve("out_" + res.getFileName().toString());
-                Files.copy(res, outres);
-                break;
-            case "*":
-                inres = Paths.get("out_" + arg);
-                res = SongBaseTest.resourcePath("/" + name + "/" + arg);
-                outres = cmpdir.resolve("out_" + res.getFileName().toString());
-                Files.copy(res, outres);
-                break;
-            case "":
-                if ("root".equals(arg)) return rundir.toString();
-            default:
-                throw new IllegalArgumentException("Illegal file mode: " + mode);
+            if ((right == null) && "root".equals(left)) return rundir.toString();
+
+            if (left.isEmpty()) {
+                if ((right == null) || right.isEmpty()) throw new IllegalArgumentException("Missing file name");
+                left = "out_" + name;
+                inres = Paths.get(left);
             }
-            checks.add(new FileCheck(arg, mode, inres, outres));
+            else {
+                res = SongBaseTest.resourcePath("/" + left);
+                inres = rundir.resolve("in_" + res.getFileName().toString());
+                Files.copy(res, inres);
+                createSongs(inres);
+            }
+            if (right != null) {
+                if (right.isEmpty()) {
+                    outres = cmpdir.resolve(inres.getFileName().toString());
+                    Files.copy(res, outres);
+                }
+                else {
+                    res = SongBaseTest.resourcePath("/" + right);
+                    outres = cmpdir.resolve("out_" + res.getFileName().toString());
+                    Files.copy(res, outres);
+                }
+            }
+            if (outres != null) checks.add(new FileCheck(left, inres, outres));
             switch(io) {
             case "<":
                 usedIO.setIn(new FileInputStream(inres.toFile()));
@@ -145,16 +142,11 @@ public class SongCommand {
     protected void checkResults(String name, List<FileCheck> checks) {
         checks.forEach(check -> {
             try {
-                if ("*".equals(check.mode) && !Files.exists(check.left)) {
+                if (!Files.exists(check.left)) {
                     throw new AssertionFailedError(String.format("File %s has not been created", check.name));
                 }
                 if (Files.mismatch(check.left, check.right) != -1L) {
-                    String fmt;
-                    switch(check.mode) {
-                    case "=": fmt = "File %s has been modified"; break;
-                    default:  fmt = "Content of file %s is not correct"; break;
-                    }
-                    throw new AssertionFailedError(String.format(fmt, check.name));
+                    throw new AssertionFailedError(String.format("Content of file %s is not correct", check.name));
                 }
             }
             catch (IOException e) {

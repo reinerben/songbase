@@ -25,11 +25,11 @@ public class SongBaseTest {
     @TestFactory
     DynamicTest[] allTests() {
         return new DynamicTest[] {
-            songTest("sort1", "--sort  %!Playlist1.m3u%   %!Playlist2.m3u8%"),
-            songTest("sort2", "--sort -%=Playlist1.m3u%  >%*Playlist1.m3u%"),
-            songTest("sort3", "--sort -%=Playlist2.m3u8% >%*Playlist2.m3u8%"),
-            songTest("sort4", "--sort <%=Playlist1.m3u%  >%*Playlist1.m3u%"),
-            songTest("sort5", "--sort <%=Playlist2.m3u8% >%*Playlist2.m3u8%"),
+            songTest("sort1", "--sort  %Playmixed1.m3u=Playsorted1.m3u% %Playmixed2.m3u8=Playsorted2.m3u8%"),
+            songTest("sort2", "--sort -%Playmixed1.m3u=%  >%=Playsorted1.m3u%"),
+            songTest("sort3", "--sort -%Playmixed2.m3u8=% >%=Playsorted2.m3u8%"),
+            songTest("sort4", "--sort <%Playmixed1.m3u%   >%=Playsorted1.m3u%"),
+            songTest("sort5", "--sort <%Playmixed2.m3u8%  >%=Playsorted2.m3u8%"),
         };
     }
 
