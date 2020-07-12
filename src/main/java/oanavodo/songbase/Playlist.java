@@ -16,6 +16,7 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 import oanavodo.songbase.Options.Check;
@@ -33,6 +34,24 @@ public abstract class Playlist {
     public interface IOFunction<T, R> {
         R apply(T arg) throws IOException;
     }
+
+    private static class Kind {
+        private String extension;
+        private IOFunction<Data, Playlist> creater;
+
+        public Kind(String extension, IOFunction<Data, Playlist> creater) {
+            this.extension = extension;
+            this.creater = creater;
+        }
+    }
+
+    /**
+     * Holds a list of all supported playlist types an their creation lambda
+     */
+    private static final List<Kind> kinds = List.of(
+        new Kind("m3u", (data) -> new M3u(data)),
+        new Kind("m3u8", (data) -> new M3u8(data))
+    );
 
     /**
      * Encapsulated playlist members.
@@ -71,10 +90,21 @@ public abstract class Playlist {
         Playlist.options = options;
     }
 
+    /**
+     * Instantiates a playlist object from a file.
+     * Changes will be written back to this file.
+     * @param path path to file
+     */
     public static Playlist of(Path path) {
         return Playlist.of(path, null);
     }
 
+    /**
+     * Instantiates a playlist object from a file.
+     * Changes will be written to the output stream.
+     * @param path path to file
+     * @param output where playlist is written after change
+     */
     public static Playlist of(Path path, OutputStream output) {
         path = path.toAbsolutePath();
         if (!Files.isRegularFile(path)) throw new RuntimeException("Playlist not found: " + path.toString());
@@ -85,29 +115,35 @@ public abstract class Playlist {
         return create(new Data(path, path.getParent(), type, null, output));
     }
 
+    /**
+     * Instantiates a playlist object from input stream.
+     * @param input where the playlist is read in
+     * @param output where playlist is written after change
+     * @param parent base folder of the playlist
+     * @param type playlist type
+     */
     public static Playlist of(InputStream input, OutputStream output, Path parent, String type) {
         return create(new Data(null, parent, type, input, output));
     }
 
+    /**
+     * Instantiates an empty playlist object.
+     * @param output where playlist is written after change
+     * @param parent base folder of the playlist
+     * @param type playlist type
+     */
     public static Playlist empty(OutputStream output, Path parent, String type) {
         return create(new Data(null, parent, type, null, output));
     }
 
-    /* used for creation and support check */
-    private static IOFunction<Data, Playlist> getCreater(String type) {
-        switch(type) {
-        case "m3u":
-            return (data) -> new M3u(data);
-        case "m3u8":
-            return (data) -> new M3u8(data);
-        default:
-            return null;
-        }
+    private static Optional<Kind> getKind(String type) {
+        return kinds.stream().filter(t -> t.extension.equals(type)).findFirst();
     }
 
     private static Playlist create(Data data) {
-        IOFunction<Data, Playlist> creater = getCreater(data.type);
-        if (creater == null) throw new RuntimeException("Playlist type not supported: " + data.type);
+        IOFunction<Data, Playlist> creater = getKind(data.type).map(t -> t.creater).orElseThrow(
+            () -> new RuntimeException("Playlist type not supported: " + data.type)
+        );
         try {
             return creater.apply(data);
         }
@@ -116,11 +152,15 @@ public abstract class Playlist {
         }
     }
 
+    /**
+     * Returns true if type of playlist file is supported.
+     * @param path playlist file
+     */
     public static boolean isSupported(Path path) {
         String name = path.getFileName().toString();
         int pos = name.lastIndexOf('.');
         if (pos > 0) name = name.substring(pos + 1);
-        return (getCreater(name) != null);
+        return getKind(name).isPresent();
     }
 
     protected Data data;

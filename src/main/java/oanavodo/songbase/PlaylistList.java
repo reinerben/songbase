@@ -22,6 +22,13 @@ public class PlaylistList {
     private Path base;
     private int stdios = 0;
 
+    /**
+     * Instantiates a playlist factory.
+     * If walk is true all playlists found beyond the base folder are added to this factory.
+     * If walk is false an empty factory is created. Playlists has to be added.
+     * @param base base folder of factory
+     * @param walk whether playlists should be added
+     */
     public PlaylistList(Path base, boolean walk) {
         this.lists = new HashMap<>();
         this.base = (base != null) ? base.toAbsolutePath() : null;
