@@ -1,24 +1,27 @@
-# songbase
+# SongBase
 A tool to maintain and operate on playlists.
-## features
-* Check if all songs are exists
-* If a song is moved from one folder to another within the music folder tree it manages to change all affected playlists
+## Features
+* Check if all songs are existing
+* If songs are renamed or moved from one folder to another within the music folder tree it manages to change all affected playlists
 * Shuffle playlist order. Interprets are considerd during shuffling so they don't follow each other
-* Short a playlist
+* Sort a playlist (case insensitive)
 * Combine playlists to one list
-* Remove content of one playlists from others
+* Remove content of one playlist from others
 * Extract common entries of two playlists
+
 Currently only m3u and m3u8 playlist formats are supported. Both without comment extensions.
+
 ## Usage
 Usage: *songBase [\<options\>] [\<list\> ...]*
-###Arguments:
+
+### Arguments:
 *\<list>\* Path to a playlist or '*-*' if playlist should be read from standard input.
 If the playlist path is prefixed by '*-*' this playlist file is read in but the result is written to standard output.
 '*-*' or '*-\<list\>*' can only be specified once.
 Otherwise some operations allow to specify more than one playlist.
 Currently only m3u (ISO8859-1) and m3u8 (UTF-8) playlist types are supported.
-###Options:
 
+### Options:
 *--base \<dir\>* Base folder for searching playlists. If playlists *\<list\>* are specified it defaults to the folder of the first playlist.
 If '*-*' is specified it defaults to the current working directory.
 
@@ -38,7 +41,7 @@ Case is ignored during sorting.
 
 *--help* Display this help
 
-###Operations:
+### Operations:
 *--map \<a\>=\<b\>* Move all songs from folder *\<a\>* found in playlist *\<list\>* to folder *\<b\>*.
 Only one playlist argument is allowed.
 All other playlists found in the base folder are updated to reflect this move.
