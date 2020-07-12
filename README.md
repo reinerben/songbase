@@ -3,7 +3,7 @@ A tool to maintain and operate on playlists.
 
 ## Features
 * Check if all songs are existing
-* If songs are renamed or moved from one folder to another within the music folder tree it manages to change all affected playlists
+* Manages if songs have to be renamed or moved within the music folder tree
 * Shuffle playlist order. Interprets are considerd during shuffling so they don't follow each other
 * Sort a playlist (case insensitive)
 * Combine playlists to one list
