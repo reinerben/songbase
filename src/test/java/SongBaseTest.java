@@ -23,6 +23,31 @@ public class SongBaseTest {
 
     public SongBaseTest() {}
 
+    /**
+     * Test calls of songbase main.
+     * Possible subsitutes:<br>
+     * %run%<br>
+     * %[&lt;ref&gt;:]&lt;file&gt;%<br>
+     * %[&lt;ref&gt;:]&lt;file&gt;=%<br>
+     * %[&lt;ref&gt;:]&lt;file&gt;=&lt;cmpfile&gt;%<br>
+     * %=&lt;cmpfile&gt;%<br>
+     * <ul>
+     * <li>%run% is relaced by the run folder of the test, where all involved files are copied to.</li>
+     * <li>&lt;file&gt; input file which is copied from the test resources to the test run folder.
+     * If it is appended by a equal sign the file is checked after test if unchanged.</li>
+     * <li>&lt;cmpfile&gt; compare file which is copied from the test resources.
+     * After test input file is checked if it has same content as compare file.
+     * If only equal sign and no input file is specified (for output only), an generated filename is used which content is checked after test run.</li>
+     * <li>[&lt;ref&gt;:] name of a previous test. The input file is taken from the run folder of this test instead of the test resources.</li>
+     * </ul>
+     * If a file substitute is prefixed by the following signs:
+     * <ul>
+     * <li>&lt; standard input is taken from the file and file name is removed from the command line.</li>
+     * <li>&gt; standard output is set the file and file name is removed from the command line.</li>
+     * <li>2&gt; standard error is set the file and file name is removed from the command line.</li>
+     * <li>@ file name is removed from the command line. Use this if only file should be copied and songs should be created.</li>
+     * </ul>
+     */
     @TestFactory
     DynamicTest[] allTests() {
         return new DynamicTest[] {
