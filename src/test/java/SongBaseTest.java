@@ -26,9 +26,8 @@ public class SongBaseTest {
     @TestFactory
     DynamicTest[] allTests() {
         return new DynamicTest[] {
-            // TODO: maptests
-            // mapTest("map1", "--base=%run% --map Rock=Other", "Playsorted1.m3u", "Playsorted2.m3u8"),
-            // mapTest("map2", "--base=%run% --map Rock=Other", "Playsorted1.m3u8", "Playsorted2.m3u"),
+            // map tests
+            songTest("map1", "--base=%run% --map Rock=Other %map/map1input.m3u=map/map1result3.m3u% @%Playsorted1.m3u=map/map1result1.m3u% @%Playsorted2.m3u8=map/map1result2.m3u8%"),
             // shuffle and sort tests
             songTest("shuffle1", "--shuffle %Playsorted1.m3u% %Playsorted2.m3u8%"),
             songTest("sort1", "--sort  %shuffle1:Playsorted1.m3u=Playsorted1.m3u% %shuffle1:Playsorted2.m3u8=Playsorted2.m3u8%"),

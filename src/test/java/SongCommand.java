@@ -9,6 +9,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -22,7 +23,8 @@ import org.opentest4j.AssertionFailedError;
 
 public class SongCommand {
 
-    private static Pattern cmdPattern = Pattern.compile("([^\\s%]*)%([^%]+)%|(\\S+)");
+    private static final Pattern cmdPattern = Pattern.compile("([^\\s%]*)%([^%]+)%|(\\S+)");
+    private static final String[] cmdPrefixes = new String[] {"<", ">", "2>", "@"};
 
     protected static class FileCheck {
         private String name;
@@ -61,7 +63,7 @@ public class SongCommand {
         args = m.results()
             .map(result -> (result.group(2) != null) ? provideArgument(name, result.group(1), result.group(2)) : result.group(3))
             .peek(arg -> log.append(" ").append(arg))
-            .filter(arg -> !(arg.startsWith("<") || arg.startsWith(">") || arg.startsWith("2>")))
+            .filter(arg -> Arrays.stream(cmdPrefixes).noneMatch(prefix -> arg.startsWith(prefix)))
             .toArray(String[]::new);
         System.err.format("TEST(%s): %s\n", name, log.toString());
     }
@@ -152,25 +154,27 @@ public class SongCommand {
 
     protected void checkResults(String name, List<FileCheck> checks) {
         StringBuilder log = new StringBuilder("");
-        checks.forEach(check -> {
-            try {
-                if (!Files.exists(check.left)) {
-                    log.append(" FAIL");
-                    throw new AssertionFailedError(String.format("File %s has not been created", check.name));
+        try {
+            checks.forEach(check -> {
+                try {
+                    if (!Files.exists(check.left)) {
+                        log.append(" FAIL");
+                        throw new AssertionFailedError(String.format("File %s has not been created", check.name));
+                    }
+                    if (Files.mismatch(check.left, check.right) != -1L) {
+                        log.append(" FAIL");
+                        throw new AssertionFailedError(String.format("Content of file %s is not correct", check.name));
+                    }
+                    log.append(" OK");
                 }
-                if (Files.mismatch(check.left, check.right) != -1L) {
-                    log.append(" FAIL");
-                    throw new AssertionFailedError(String.format("Content of file %s is not correct", check.name));
+                catch (IOException e) {
+                    throw new UncheckedIOException(e);
                 }
-                log.append(" OK");
-            }
-            catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
-            finally {
-                System.err.format("RESULT(%s):%s\n", name, log.toString());
-            }
-        });
+            });
+        }
+        finally {
+            System.err.format("RESULT(%s):%s\n", name, log.toString());
+        }
     }
 
     private void createSongs(Path path) {

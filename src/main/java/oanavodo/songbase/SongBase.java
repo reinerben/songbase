@@ -322,7 +322,7 @@ public class SongBase {
                         if (nointerpret || !Files.isDirectory(newpath)) {
                             newpath = to;
                         }
-                        if (Files.isSameFile(Paths.get(folder), newpath)) return;
+                        if (Files.isSameFile(base.resolve(folder), newpath)) return;
                         Song dup = song.move(newpath, delete);
                         int count = counts.getOrDefault(newpath, 0);
                         counts.put(newpath, count + 1);
