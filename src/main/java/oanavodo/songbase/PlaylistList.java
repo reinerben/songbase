@@ -82,6 +82,6 @@ public class PlaylistList {
     }
 
     public void update(boolean sorted) {
-        lists.values().stream().filter(list -> list.isChanged()).forEach(list -> list.write(sorted));
+        lists.values().forEach(list -> list.update(sorted));
     }
 }

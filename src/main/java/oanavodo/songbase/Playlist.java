@@ -278,6 +278,10 @@ public abstract class Playlist {
         return that.songs.stream().filter(ethat -> songs.parallelStream().noneMatch(ethis -> ethis.equals(ethat)));
     }
 
+    public void update(boolean sorted) {
+        if (isChanged()) write(sorted);
+    }
+
     public void write(boolean sorted) {
         if ((data.path == null) && (data.output == null)) return;
         String descr = (data.output != null) ? "<stdout>" : data.name;

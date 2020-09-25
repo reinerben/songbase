@@ -304,6 +304,7 @@ public class SongBase {
                 Playlist that = arg2Playlist(args[i], root, type);
                 if (root == null) root = that.getBase();
                 PlaylistList factory = new PlaylistList(root, true);
+                factory.removePlaylist(that);
 
                 Path base = that.getBase();
                 if (from == null) from = "Neu";
@@ -313,27 +314,34 @@ public class SongBase {
                 if (!Files.isDirectory(to)) throw new RuntimeException("To folder not found: " + to.toString());
 
                 System.err.format("SONGBASE: Mapping '%s' -> '%s' based on %s\n", from.replaceAll("\\\\", "/"), into.toString().replaceAll("\\\\", "/"), that.getName());
+                int countno = 0;
                 Map<Path, Integer> counts = new TreeMap<>();
                 for (Playlist.Entry song : that.getEntries()) {
                     String folder = song.getFolder();
                     String interpret = song.getInterpret();
-                    if (folder.equals(from)) {
-                        Path newpath = base.resolve(interpret);
-                        if (nointerpret || !Files.isDirectory(newpath)) {
-                            newpath = to;
-                        }
-                        if (Files.isSameFile(base.resolve(folder), newpath)) return;
-                        Song dup = song.move(newpath, delete);
-                        int count = counts.getOrDefault(newpath, 0);
-                        counts.put(newpath, count + 1);
-                        if (dup != null) {
-                            factory.move(song, dup);
-                        }
+                    if (!folder.equals(from)) {
+                        countno++;
+                        continue;
+                    }
+                    Path newpath = base.resolve(interpret);
+                    if (nointerpret || !Files.isDirectory(newpath)) {
+                        newpath = to;
+                    }
+                    if (Files.isSameFile(base.resolve(folder), newpath)) {
+                        countno++;
+                        continue;
+                    }
+                    Song dup = song.move(newpath, delete);
+                    int count = counts.getOrDefault(newpath, 0);
+                    counts.put(newpath, count + 1);
+                    if (dup != null) {
+                        factory.move(song, dup);
                     }
                 }
+                that.update(sorted);
                 factory.update(sorted);
-                //if (that.isChanged()) that.write();
                 counts.forEach((path, count) -> System.err.format("Moves to %s: %d\n", base.relativize(path).toString().replaceAll("\\\\", "/"), count));
+                System.err.format("Without move: %d\n", countno);
                 break;
             }}
         }
