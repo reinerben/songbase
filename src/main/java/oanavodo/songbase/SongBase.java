@@ -1,9 +1,9 @@
 package oanavodo.songbase;
 
-import java.io.OutputStream;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
@@ -19,12 +19,14 @@ public class SongBase {
         return Stream.of(
             "usage: " + SongBase.class.getSimpleName() + " [<options>] [<list> ...]",
             "Manage playlists if songs are moved or have to be added or removed.",
-            "<list> Path to a playlist or '-' if playlist should be read from standard input. If the playlist path is prefixed by '-' this playlist",
-            "       file is read in but the result is written to standard output. '-' or '-<list>' can only be specified once. Otherwise some",
+            "<list> Path to a playlist or '-' if playlist should be read from standard input. '-' can only be specified once. Otherwise some",
             "       operations allow to specify more than one playlist. Currently m3u (ISO8859-1) and m3u8 (UTF-8) playlist types are supported.",
             "Options:",
             "--base <dir>  Base folder for searching playlists. If playlists <list> are specified it defaults to the folder of the first playlist.",
             "              If '-' is specified it defaults to the current working directory.",
+            "--out <file>  If a playlist has been modified the changes are written to the specified file. If '-' is specified for <file> the",
+            "              playlist is written to standard output. If option '--out' is used only one playlist argument can be specified.",
+            "              Currently playlist type cannot be changed by specified <file> extension.",
             "--dryrun      No changes are made. Only report what would be done.",
             "--nocheck     Don't check if a songs exists when reading in the playlists.",
             "--nointerpret During default map operation: don't check for interpret folders.",
@@ -40,20 +42,23 @@ public class SongBase {
             "                    A special behavior in this default operation is that if there is a folder with the name of the interpret",
             "                    then the song is moved to this folder instead of 'Rock'.",
             "--check             Only check all playlists found in the base folder (defaults to working directory) if their songs exist.",
-            "--sort              Sorts all playlists supplied as arguments. If solely '-' or '-<list>' is specified standard input",
-            "                    resp. playlist <list> is sorted and written to standard output.",
-            "--shuffle [<gap>]   Shuffles all playlists supplied as arguments. If solely '-' or '-<list>' is specified standard input",
-            "                    resp. playlist <list> is shuffled and written to standard output. <gap> is an optional number of songs",
+            "--sort              Sorts all playlists supplied as arguments. If solely '-' is specified standard input is sorted and written",
+            "                    to standard output. If option '--out <file>' is specified the output is written to the specified file.",
+            "--shuffle [<gap>]   Shuffles all playlists supplied as arguments. <gap> is an optional number of songs. If solely '-' is specified",
+            "                    standard input is shuffled and written to standard output. If option '--out <file>' is specified the output is ",
+            "                    written to the specified file.",
             "                    which should be between songs of same interpret (default: 5). Please note that the gap also depends",
             "                    on the variety of interprets and may be lower than requested.",
             "--select <text>     Write entries of playlist <list> which contains text <text> to standard output. Multiple playlist arguments",
             "                    are allowed. The text is searched in the folder, interpret and title part. The search is case sensitive.",
-            "--add <list2>       Add content of playlist <list2> to all playlists supplied as arguments. If solely '-' or '-<list>' is specified",
-            "                    the union of standard input resp. playlist <list> and <list2> are written to standard output. If no playlist",
-            "                    is supplied as argument the songs from <list2> are added to all playlists found in the base folder.",
-            "--remove <list2>    Remove content of playlist <list2> from all playlists supplied as arguments. If solely '-' or '-<list>'",
-            "                    is specified the differences between standard input resp. playlist <list> and <list2> are written to standard output.",
-            "                    If no playlist is supplied as argument the songs from <list2> are removed from all playlists found in the base folder.",
+            "--add <list2>       Add content of playlist <list2> to all playlists supplied as arguments. If solely '-' is specified the union",
+            "                    of standard input and <list2> are written to standard output.  If option '--out <file>' is specified the output",
+            "                    is written to the specified file. If no playlist is supplied as argument the songs from <list2> are added to all",
+            "                    playlists found in the base folder.",
+            "--remove <list2>    Remove content of playlist <list2> from all playlists supplied as arguments. If solely '-' is specified the",
+            "                    differences between standard input and <list2> are written to standard output. If option '--out <file>' is specified",
+            "                    the output is written to the specified file. If no playlist is supplied as argument the songs from <list2> are",
+            "                    removed from all playlists found in the base folder.",
             "--union             Write content of all playlists supplied as argument to standard output.",
             "--intersect <list2> Write common entries in playlist <list2> and playlist <list> to standard output. Only one playlist argument is allowed."
         ).collect(Collectors.joining("\n"));
@@ -61,25 +66,58 @@ public class SongBase {
 
     public static enum Operation { NONE, CHECKONLY, MAP, ADD, REMOVE, UNION, INTERSECT, SELECT, SORT, SHUFFLE };
 
-    public static Playlist arg2Playlist(String arg, Path root, String type) {
+    public static Playlist arg2Playlist(String arg, Path root, String type, String out) {
+        // check output parameter
+        Path outpath = null;
+        if ((out != null) && !out.equals("-")) {
+            try {
+                if (out.isBlank()) throw new InvalidPathException(out, "Empty path not allowed");
+                outpath = Paths.get(out);
+            }
+            catch (InvalidPathException ex) {
+                throw new RuntimeException("Please supply a valid output playlist path", ex);
+            }
+        }
+
+        // empty playlist
+        if (arg == null) {
+            if (root == null) root = Paths.get("").toAbsolutePath();
+            return (outpath == null) ? Playlist.empty(System.out, root, type) : Playlist.empty(outpath, root, type);
+        }
+
+        // playlist from stdin
         if (arg.equals("-")) {
             if (root == null) root = Paths.get("").toAbsolutePath();
-            return Playlist.of(System.in, System.out, root, type);
+            return (outpath == null) ? Playlist.of(System.in, System.out, root, type) : Playlist.of(System.in, outpath, root, type);
         }
-        OutputStream out = null;
-        if (arg.startsWith("-")) {
-            arg = arg.substring(1);
-            out = System.out;
+
+        // playlist from file
+        Path inpath;
+        try {
+            if (arg.isBlank()) throw new InvalidPathException(arg, "Empty path not allowed");
+            inpath = Paths.get(arg);
         }
-        return Playlist.of(Paths.get(arg), out);
+        catch (InvalidPathException ex) {
+            throw new RuntimeException("Please supply a valid playlist path", ex);
+        }
+        return (out == null) ? Playlist.of(inpath) : (outpath == null) ? Playlist.of(inpath, System.out) : Playlist.of(inpath, outpath);
     }
 
-    public static PlaylistList args2Factory(String[] args, Path root, String type) {
+    public static PlaylistList args2Factory(String[] args, Path root, String type, String out) {
         PlaylistList factory = new PlaylistList(root, false);
+        boolean stdio = false;
+        boolean outio = false;
         int i = 0;
         while (i < args.length) {
-            Playlist list = arg2Playlist(args[i], root, type);
-            if (list.isStdio() && factory.hasStdio()) throw new RuntimeException("Standard input playlist can only be specified once");
+            Playlist list = arg2Playlist(args[i], root, type, out);
+            if (list.isOutio()) {
+                if (outio) throw new RuntimeException("output file can only be specified for one playlist");
+                outio = true;
+            }
+            if (list.isStdio()) {
+                if (stdio) throw new RuntimeException("Standard input or output playlist can only be specified once");
+                stdio = true;
+            }
             factory.addPlaylist(list);
             i++;
         }
@@ -97,6 +135,7 @@ public class SongBase {
             Path root = null;
             String from = null;
             Path into = null;
+            String out = null;
             String type = "m3u";
             int shufflegap = 5;
             String search = "";
@@ -137,7 +176,13 @@ public class SongBase {
                         if ((i >= args.length) || args[i].startsWith("--") || args[i].isBlank()) throw new RuntimeException("Please supply base folder");
                         value = args[i++];
                     case "--base=":
-                        root = Paths.get(value).toAbsolutePath();
+                        try {
+                            if (value.isBlank()) throw new InvalidPathException(value, "Empty path not allowed");
+                            root = Paths.get(value).toAbsolutePath();
+                        }
+                        catch (InvalidPathException ex) {
+                            throw new RuntimeException("Please supply a valid " + option.substring(2) + " base path", ex);
+                        }
                         if (!Files.isDirectory(root)) throw new RuntimeException("Base folder not found: " + root.toString());
                         break;
                     case "--type":
@@ -145,6 +190,12 @@ public class SongBase {
                         value = args[i++];
                     case "--type=":
                         type = value.toLowerCase();
+                        break;
+                    case "--out":
+                        if ((i >= args.length) || args[i].startsWith("--") || args[i].isBlank()) throw new RuntimeException("Please supply output path");
+                        value = args[i++];
+                    case "--out=":
+                        out = value;
                         break;
                     case "--check":
                         command = Operation.CHECKONLY;
@@ -189,7 +240,13 @@ public class SongBase {
                     case "--add=":
                     case "--remove=":
                     case "--intersect=":
-                        into = Paths.get(value);
+                        try {
+                            if (value.isBlank()) throw new InvalidPathException(value, "Empty path not allowed");
+                            into = Paths.get(value);
+                        }
+                        catch (InvalidPathException ex) {
+                            throw new RuntimeException("Please supply a valid " + option.substring(2) + " playlist path", ex);
+                        }
                         command = Operation.valueOf(option.substring(2).replace("=", "").toUpperCase());
                         break;
                     default:
@@ -209,10 +266,10 @@ public class SongBase {
                 break;
             case SELECT: {
                 if (i >= args.length) throw new RuntimeException("Please supply input playlist[s] or specify - for stdin");
-                PlaylistList factory = args2Factory(Arrays.copyOfRange(args, i, args.length), root, type);
+                PlaylistList factory = args2Factory(Arrays.copyOfRange(args, i, args.length), root, type, null);
                 if (root == null) root = factory.getBase();
                 final String fsearch = search;
-                Playlist result = Playlist.empty(System.out, root, type);
+                Playlist result = arg2Playlist(null, root, type, out);
                 result.add(
                     factory.stream()
                         .peek(list -> System.err.format("SONGBASE: Filter for '%s', %s\n", fsearch, list.getName()))
@@ -223,7 +280,7 @@ public class SongBase {
             }
             case SORT: {
                 if (i >= args.length) throw new RuntimeException("Please supply input playlist[s] or specify - for stdin");
-                PlaylistList factory = args2Factory(Arrays.copyOfRange(args, i, args.length), root, type);
+                PlaylistList factory = args2Factory(Arrays.copyOfRange(args, i, args.length), root, type, out);
                 factory.stream()
                     .peek(list -> System.err.format("SONGBASE: Sort %s\n", list.getName()))
                     .forEach(list -> list.sort());
@@ -232,7 +289,7 @@ public class SongBase {
             }
             case SHUFFLE: {
                 if (i >= args.length) throw new RuntimeException("Please supply input playlist[s] or specify - for stdin");
-                PlaylistList factory = args2Factory(Arrays.copyOfRange(args, i, args.length), root, type);
+                PlaylistList factory = args2Factory(Arrays.copyOfRange(args, i, args.length), root, type, out);
                 final int gap = shufflegap;
                 factory.stream()
                     .peek(list -> System.err.format("SONGBASE: Shuffle %s\n", list.getName()))
@@ -243,7 +300,7 @@ public class SongBase {
             case ADD: {
                 PlaylistList factory;
                 if (i < args.length) {
-                    factory = args2Factory(Arrays.copyOfRange(args, i, args.length), root, type);
+                    factory = args2Factory(Arrays.copyOfRange(args, i, args.length), root, type, out);
                 }
                 else {
                     if (root == null) root = Paths.get("").toAbsolutePath();
@@ -260,7 +317,7 @@ public class SongBase {
             case REMOVE: {
                 PlaylistList factory;
                 if (i < args.length) {
-                    factory = args2Factory(Arrays.copyOfRange(args, i, args.length), root, type);
+                    factory = args2Factory(Arrays.copyOfRange(args, i, args.length), root, type, out);
                 }
                 else {
                     if (root == null) root = Paths.get("").toAbsolutePath();
@@ -276,9 +333,9 @@ public class SongBase {
             }
             case UNION: {
                 if (i >= args.length) throw new RuntimeException("Please supply input playlist or specify - for stdin");
-                PlaylistList factory = args2Factory(Arrays.copyOfRange(args, i, args.length), root, type);
+                PlaylistList factory = args2Factory(Arrays.copyOfRange(args, i, args.length), root, type, null);
                 if (root == null) root = factory.getBase();
-                Playlist result = Playlist.empty(System.out, root, type);
+                Playlist result = arg2Playlist(null, root, type, out);
                 result.add(
                     factory.stream()
                         .peek(list -> System.err.format("SONGBASE: Add %s\n", list.getName()))
@@ -288,10 +345,10 @@ public class SongBase {
             }
             case INTERSECT: {
                 if (i >= args.length) throw new RuntimeException("Please supply input playlist or specify - for stdin");
-                Playlist thiz = arg2Playlist(args[i], root, type);
+                Playlist thiz = arg2Playlist(args[i], root, type, null);
                 if (root == null) root = thiz.getBase();
                 Playlist that = Playlist.of(into);
-                Playlist result = Playlist.empty(System.out, root, type);
+                Playlist result = arg2Playlist(null, root, type, out);
                 System.err.format("SONGBASE: Common songs of %s and %s\n", thiz.getName(), that.getName());
                 result.add(
                     thiz.intersect(that)
@@ -301,7 +358,7 @@ public class SongBase {
             }
             case MAP: {
                 if (i >= args.length) throw new RuntimeException("Please supply input playlist or specify - for stdin");
-                Playlist that = arg2Playlist(args[i], root, type);
+                Playlist that = arg2Playlist(args[i], root, type, out);
                 if (root == null) root = that.getBase();
                 PlaylistList factory = new PlaylistList(root, true);
                 factory.removePlaylist(that);

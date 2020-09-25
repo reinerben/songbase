@@ -63,13 +63,15 @@ public abstract class Playlist {
         protected String name;
         protected String type;
         protected InputStream input;
+        protected Path outpath;
         protected OutputStream output;
 
-        public Data(Path path, Path parent, String type, InputStream input, OutputStream output) {
+        public Data(Path path, Path parent, String type, InputStream input, Path outpath, OutputStream output) {
             this.path = path;
             this.parent = parent;
             this.type = type;
             this.input = input;
+            this.outpath = outpath;
             this.output = output;
 
             if (path != null) {
@@ -77,6 +79,9 @@ public abstract class Playlist {
             }
             else if (input != null) {
                 name = "<stdin>";
+            }
+            else if (outpath != null) {
+                name = outpath.getFileName().toString();
             }
             else {
                 name = "<stdout>";
@@ -96,34 +101,62 @@ public abstract class Playlist {
      * @param path path to file
      */
     public static Playlist of(Path path) {
-        return Playlist.of(path, null);
+        return Playlist.of(path, path, null);
     }
 
     /**
      * Instantiates a playlist object from a file.
-     * Changes will be written to the output stream.
+     * Changes will be written to an output stream.
      * @param path path to file
      * @param output where playlist is written after change
      */
     public static Playlist of(Path path, OutputStream output) {
+        return Playlist.of(path, null, output);
+    }
+
+    /**
+     * Instantiates a playlist object from a file.
+     * Changes will be written to an output file.
+     * @param path path to file
+     * @param outpath where playlist is written after change
+     */
+    public static Playlist of(Path path, Path outpath) {
+        return Playlist.of(path, outpath, null);
+    }
+
+    private static Playlist of(Path path, Path outpath, OutputStream output) {
         path = path.toAbsolutePath();
+        if (outpath != null) outpath = outpath.toAbsolutePath();
         if (!Files.isRegularFile(path)) throw new RuntimeException("Playlist not found: " + path.toString());
         String name = path.getFileName().toString();
         int end = name.lastIndexOf(".");
         if (end == -1) end = name.length() - 1;
         String type = name.substring(end + 1).toLowerCase();
-        return create(new Data(path, path.getParent(), type, null, output));
+        return create(new Data(path, path.getParent(), type, null, outpath, output));
     }
 
     /**
      * Instantiates a playlist object from input stream.
+     * Changes are written to an output file.
+     * @param input where the playlist is read in
+     * @param outpath where playlist is written after change
+     * @param parent base folder of the playlist
+     * @param type playlist type
+     */
+    public static Playlist of(InputStream input, Path outpath, Path parent, String type) {
+        return create(new Data(null, parent, type, input, outpath, null));
+    }
+
+    /**
+     * Instantiates a playlist object from input stream.
+     * Changes are written to an output stream.
      * @param input where the playlist is read in
      * @param output where playlist is written after change
      * @param parent base folder of the playlist
      * @param type playlist type
      */
     public static Playlist of(InputStream input, OutputStream output, Path parent, String type) {
-        return create(new Data(null, parent, type, input, output));
+        return create(new Data(null, parent, type, input, null, output));
     }
 
     /**
@@ -133,7 +166,17 @@ public abstract class Playlist {
      * @param type playlist type
      */
     public static Playlist empty(OutputStream output, Path parent, String type) {
-        return create(new Data(null, parent, type, null, output));
+        return create(new Data(null, parent, type, null, null, output));
+    }
+
+    /**
+     * Instantiates an empty playlist object.
+     * @param outpath where playlist is written after change
+     * @param parent base folder of the playlist
+     * @param type playlist type
+     */
+    public static Playlist empty(Path outpath, Path parent, String type) {
+        return create(new Data(null, parent, type, null, outpath, null));
     }
 
     private static Optional<Kind> getKind(String type) {
@@ -181,7 +224,11 @@ public abstract class Playlist {
     protected abstract void save() throws IOException;
 
     public boolean isStdio() {
-        return (data.output != null);
+        return ((data.input != null) || (data.output != null));
+    }
+
+    public boolean isOutio() {
+        return ((data.outpath != null) && !data.outpath.equals(data.path));
     }
 
     public Path getBase() {
@@ -283,8 +330,8 @@ public abstract class Playlist {
     }
 
     public void write(boolean sorted) {
-        if ((data.path == null) && (data.output == null)) return;
-        String descr = (data.output != null) ? "<stdout>" : data.name;
+        if ((data.outpath == null) && (data.output == null)) return;
+        String descr = (data.output != null) ? "<stdout>" : data.outpath.getFileName().toString();
         System.err.format("PLAYLIST: writing %s\n", descr);
         if (sorted) sort();
         try {
@@ -421,7 +468,7 @@ public abstract class Playlist {
         }
 
         protected void savewithcs(Charset cs) throws IOException {
-            PrintWriter out = (data.output == null) ? new PrintWriter(data.path.toFile(), cs) : new PrintWriter(data.output, true, cs);
+            PrintWriter out = (data.output == null) ? new PrintWriter(data.outpath.toFile(), cs) : new PrintWriter(data.output, true, cs);
             try (out) {
                 songs.forEach(song -> out.println(song.getEntry()));
             }
