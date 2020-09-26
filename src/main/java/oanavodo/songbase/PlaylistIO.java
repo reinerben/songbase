@@ -16,7 +16,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
-import oanavodo.songbase.Playlist2.Entry;
+import oanavodo.songbase.Playlist.Entry;
 
 abstract class PlaylistIO {
 
@@ -99,9 +99,9 @@ abstract class PlaylistIO {
         this.type = type;
     }
 
-    protected abstract void fill(Playlist2 list, boolean onlycheck) throws IOException;
+    protected abstract void fill(Playlist list, boolean onlycheck) throws IOException;
 
-    protected abstract void save(Playlist2 list) throws IOException;
+    protected abstract void save(Playlist list) throws IOException;
 
     public Path getPath() {
         return path;
@@ -170,11 +170,11 @@ abstract class PlaylistIO {
         }
 
         @Override
-        protected void fill(Playlist2 list, boolean onlycheck) throws IOException {
+        protected void fill(Playlist list, boolean onlycheck) throws IOException {
             fillwithcs(StandardCharsets.ISO_8859_1, list, onlycheck);
         }
 
-        protected void fillwithcs(Charset cs, Playlist2 list, boolean onlycheck) throws IOException {
+        protected void fillwithcs(Charset cs, Playlist list, boolean onlycheck) throws IOException {
             AtomicInteger count = new AtomicInteger(0);
             Reader backend = (input == null) ? new FileReader(path.toFile(), cs) : new InputStreamReader(input, cs);
             BufferedReader reader = new BufferedReader(backend);
@@ -198,11 +198,11 @@ abstract class PlaylistIO {
         }
 
         @Override
-        protected void save(Playlist2 list) throws IOException {
+        protected void save(Playlist list) throws IOException {
             savewithcs(StandardCharsets.ISO_8859_1, list) ;
         }
 
-        protected void savewithcs(Charset cs, Playlist2 list) throws IOException {
+        protected void savewithcs(Charset cs, Playlist list) throws IOException {
             PrintWriter out = (output == null) ? new PrintWriter(path.toFile(), cs) : new PrintWriter(output, true, cs);
             try (out) {
                 list.entries().forEach(song -> printEntry(out, song));
@@ -228,12 +228,12 @@ abstract class PlaylistIO {
         }
 
         @Override
-        protected void fill(Playlist2 list, boolean onlycheck) throws IOException {
+        protected void fill(Playlist list, boolean onlycheck) throws IOException {
             fillwithcs(StandardCharsets.UTF_8, list, onlycheck);
         }
 
         @Override
-        protected void save(Playlist2 list) throws IOException {
+        protected void save(Playlist list) throws IOException {
             savewithcs(StandardCharsets.UTF_8, list) ;
         }
     }

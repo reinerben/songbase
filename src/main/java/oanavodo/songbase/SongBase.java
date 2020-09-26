@@ -26,7 +26,6 @@ public class SongBase {
             "              If '-' is specified it defaults to the current working directory.",
             "--out <file>  If a playlist has been modified the changes are written to the specified file. If '-' is specified for <file> the",
             "              playlist is written to standard output. If option '--out' is used only one playlist argument can be specified.",
-            "              Currently playlist type cannot be changed by specified <file> extension.",
             "--dryrun      No changes are made. Only report what would be done.",
             "--nocheck     Don't check if a songs exists when reading in the playlists.",
             "--nointerpret During default map operation: don't check for interpret folders.",
@@ -35,12 +34,11 @@ public class SongBase {
             "--type <type> Playlist type when reading from standard input and writing to standard output (defaults to m3u).",
             "--help        Display this help.",
             "Operations:",
-            "If playlists are written to standard output their songs are alphabetically sorted by ignoring letter case.",
+            "If no operation is specified but the '--out' option with one playlist the playlist format can be converted.",
             "--map <a>=<b>       Move all songs from folder <a> found in playlist <list> to folder <b>. Only one playlist argument is allowed.",
             "                    All other playlists found in the base folder are updated to reflect this move.",
-            "                    This is the default operation if no other is given and songs are moved from folder 'Neu' to 'Rock'.",
-            "                    A special behavior in this default operation is that if there is a folder with the name of the interpret",
-            "                    then the song is moved to this folder instead of 'Rock'.",
+            "                    A special behavior in this operation (if not switched of with option '--nointerpret') is that if there is a",
+            "                    folder with the name of the interpret then the song is moved to this folder instead of <b>.",
             "--check             Only check all playlists found in the base folder (defaults to working directory) if their songs exist.",
             "--sort              Sorts all playlists supplied as arguments. If solely '-' is specified standard input is sorted and written",
             "                    to standard output. If option '--out <file>' is specified the output is written to the specified file.",
@@ -82,12 +80,14 @@ public class SongBase {
         // empty playlist
         if (arg == null) {
             if (root == null) root = Paths.get("").toAbsolutePath();
-            return (outpath == null) ? Playlist.empty(System.out, root, type) : Playlist.empty(outpath, root, type);
+            if (type == null) type = "m3u";
+            return (outpath == null) ? Playlist.empty(System.out, root, type) : Playlist.empty(outpath, root);
         }
 
         // playlist from stdin
         if (arg.equals("-")) {
             if (root == null) root = Paths.get("").toAbsolutePath();
+            if (type == null) type = "m3u";
             return (outpath == null) ? Playlist.of(System.in, System.out, root, type) : Playlist.of(System.in, outpath, root, type);
         }
 
@@ -100,7 +100,7 @@ public class SongBase {
         catch (InvalidPathException ex) {
             throw new RuntimeException("Please supply a valid playlist path", ex);
         }
-        return (out == null) ? Playlist.of(inpath) : (outpath == null) ? Playlist.of(inpath, System.out) : Playlist.of(inpath, outpath);
+        return (out == null) ? Playlist.of(inpath) : (outpath == null) ? Playlist.of(inpath, System.out, type) : Playlist.of(inpath, outpath);
     }
 
     public static PlaylistList args2Factory(String[] args, Path root, String type, String out) {
@@ -130,13 +130,13 @@ public class SongBase {
             // output encoding utf-8 (call chcp 65001 for windows console)
             System.setErr(new PrintStream(System.err, true, StandardCharsets.UTF_8));
 
-            Operation command = Operation.MAP;
+            Operation command = Operation.NONE;
             Options options = new Options();
             Path root = null;
             String from = null;
             Path into = null;
             String out = null;
-            String type = "m3u";
+            String type = null;
             int shufflegap = 5;
             String search = "";
             boolean nointerpret = false;
@@ -400,7 +400,13 @@ public class SongBase {
                 counts.forEach((path, count) -> System.err.format("Moves to %s: %d\n", base.relativize(path).toString().replaceAll("\\\\", "/"), count));
                 System.err.format("Without move: %d\n", countno);
                 break;
-            }}
+            }
+            default:
+                if ((i >= args.length) || (out == null)) break;
+                Playlist thiz = arg2Playlist(args[i], root, type, out);
+                thiz.write(sorted);
+                break;
+            }
         }
         catch (Exception ex) {
             ex.printStackTrace(System.err);

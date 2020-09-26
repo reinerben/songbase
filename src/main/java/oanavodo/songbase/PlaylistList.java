@@ -20,7 +20,6 @@ public class PlaylistList {
     }
     private Map<Path, Playlist> lists;
     private Path base;
-    private int stdios = 0;
 
     /**
      * Instantiates a playlist factory.
@@ -35,7 +34,7 @@ public class PlaylistList {
         if (walk && (base != null)) {
             try {
                 if (!Files.isDirectory(this.base)) throw new RuntimeException("Folder not found: " + this.base.toString());
-                Files.walk(this.base).filter(path -> Playlist.isSupported(path)).forEach(path -> {
+                Files.walk(this.base).filter(path -> PlaylistIO.isSupported(path)).forEach(path -> {
                     Playlist list = Playlist.of(path);
                     lists.put(list.getPath(), list);
                 });
@@ -49,10 +48,6 @@ public class PlaylistList {
         }
     }
 
-    public boolean hasStdio() {
-        return (stdios > 0);
-    }
-
     public Path getBase() {
         return base;
     }
@@ -63,14 +58,12 @@ public class PlaylistList {
 
     public void addPlaylist(Playlist list) {
         lists.put(list.getPath(), list);
-        if (list.isStdio()) stdios++;
         if (base == null) base = list.getBase();
     }
 
     public void removePlaylist(Playlist list) {
         Playlist that = lists.remove(list.getPath());
         if (that == null) return;
-        if (that.isStdio() && (stdios > 0)) stdios--;
     }
 
     public Stream<Playlist> stream() {

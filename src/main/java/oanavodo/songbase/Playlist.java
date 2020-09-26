@@ -1,22 +1,13 @@
 package oanavodo.songbase;
 
-import java.io.BufferedReader;
-import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.io.OutputStream;
-import java.io.PrintWriter;
-import java.io.Reader;
-import java.nio.charset.Charset;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 import oanavodo.songbase.Options.Check;
@@ -28,66 +19,7 @@ import oanavodo.songbase.Options.Check;
  * A playlist can be read/written from/to a file or to an input/output stream.
  * @author Reiner
  */
-public abstract class Playlist {
-
-    @FunctionalInterface
-    public interface IOFunction<T, R> {
-        R apply(T arg) throws IOException;
-    }
-
-    private static class Kind {
-        private String extension;
-        private IOFunction<Data, Playlist> creater;
-
-        public Kind(String extension, IOFunction<Data, Playlist> creater) {
-            this.extension = extension;
-            this.creater = creater;
-        }
-    }
-
-    /**
-     * Holds a list of all supported playlist types an their creation lambda
-     */
-    private static final List<Kind> kinds = List.of(
-        new Kind("m3u", (data) -> new M3u(data)),
-        new Kind("m3u8", (data) -> new M3u8(data))
-    );
-
-    /**
-     * Encapsulated playlist members.
-     * Why? subclass constructors need not to be changed if arguments change
-     */
-    protected static class Data {
-        protected Path path;
-        protected Path parent;
-        protected String name;
-        protected String type;
-        protected InputStream input;
-        protected Path outpath;
-        protected OutputStream output;
-
-        public Data(Path path, Path parent, String type, InputStream input, Path outpath, OutputStream output) {
-            this.path = path;
-            this.parent = parent;
-            this.type = type;
-            this.input = input;
-            this.outpath = outpath;
-            this.output = output;
-
-            if (path != null) {
-                name = path.getFileName().toString();
-            }
-            else if (input != null) {
-                name = "<stdin>";
-            }
-            else if (outpath != null) {
-                name = outpath.getFileName().toString();
-            }
-            else {
-                name = "<stdout>";
-            }
-        }
-    }
+public class Playlist {
 
     protected static Options options = new Options();
 
@@ -96,151 +28,133 @@ public abstract class Playlist {
     }
 
     /**
-     * Instantiates a playlist object from a file.
-     * Changes will be written back to this file.
-     * @param path path to file
+     * Instantiates a playlist object from a file.Changes will be written back to this file.
+     * @param in path to file
+     * @return
      */
-    public static Playlist of(Path path) {
-        return Playlist.of(path, path, null);
+    public static Playlist of(Path in) {
+        PlaylistIO inio = PlaylistIO.of(in);
+        return create(inio, PlaylistIO.of(in), inio.getPath().getParent());
     }
 
     /**
-     * Instantiates a playlist object from a file.
-     * Changes will be written to an output stream.
-     * @param path path to file
-     * @param output where playlist is written after change
+     * Instantiates a playlist object from a file.Changes will be written to an output stream.
+     * @param in path to file
+     * @param out where playlist is written after change
+     * @param type playlist type. If null use type of input file
+     * @return
      */
-    public static Playlist of(Path path, OutputStream output) {
-        return Playlist.of(path, null, output);
+    public static Playlist of(Path in, OutputStream out, String type) {
+        PlaylistIO inio = PlaylistIO.of(in);
+        if (type == null) type = inio.getType();
+        return create(inio, PlaylistIO.of(out, type), inio.getPath().getParent());
     }
 
     /**
-     * Instantiates a playlist object from a file.
-     * Changes will be written to an output file.
-     * @param path path to file
-     * @param outpath where playlist is written after change
+     * Instantiates a playlist object from a file.Changes will be written to an output file.
+     * @param in path to file
+     * @param out where playlist is written after change
+     * @return
      */
-    public static Playlist of(Path path, Path outpath) {
-        return Playlist.of(path, outpath, null);
-    }
-
-    private static Playlist of(Path path, Path outpath, OutputStream output) {
-        path = path.toAbsolutePath();
-        if (outpath != null) outpath = outpath.toAbsolutePath();
-        if (!Files.isRegularFile(path)) throw new RuntimeException("Playlist not found: " + path.toString());
-        String name = path.getFileName().toString();
-        int end = name.lastIndexOf(".");
-        if (end == -1) end = name.length() - 1;
-        String type = name.substring(end + 1).toLowerCase();
-        return create(new Data(path, path.getParent(), type, null, outpath, output));
+    public static Playlist of(Path in, Path out) {
+        PlaylistIO inio = PlaylistIO.of(in);
+        return create(inio, PlaylistIO.of(out), inio.getPath().getParent());
     }
 
     /**
-     * Instantiates a playlist object from input stream.
-     * Changes are written to an output file.
-     * @param input where the playlist is read in
-     * @param outpath where playlist is written after change
+     * Instantiates a playlist object from input stream.Changes are written to an output file.
+     * @param in where the playlist is read in
+     * @param out where playlist is written after change
      * @param parent base folder of the playlist
      * @param type playlist type
+     * @return
      */
-    public static Playlist of(InputStream input, Path outpath, Path parent, String type) {
-        return create(new Data(null, parent, type, input, outpath, null));
+    public static Playlist of(InputStream in, Path out, Path parent, String type) {
+        return create(PlaylistIO.of(in, type), PlaylistIO.of(out), parent);
     }
 
     /**
-     * Instantiates a playlist object from input stream.
-     * Changes are written to an output stream.
-     * @param input where the playlist is read in
-     * @param output where playlist is written after change
+     * Instantiates a playlist object from input stream.Changes are written to an output stream.
+     * @param in where the playlist is read in
+     * @param out where playlist is written after change
      * @param parent base folder of the playlist
      * @param type playlist type
+     * @return
      */
-    public static Playlist of(InputStream input, OutputStream output, Path parent, String type) {
-        return create(new Data(null, parent, type, input, null, output));
+    public static Playlist of(InputStream in, OutputStream out, Path parent, String type) {
+        return create(PlaylistIO.of(in, type), PlaylistIO.of(out, type), parent);
     }
 
     /**
      * Instantiates an empty playlist object.
-     * @param output where playlist is written after change
+     * @param out where playlist is written after change
      * @param parent base folder of the playlist
      * @param type playlist type
+     * @return
      */
-    public static Playlist empty(OutputStream output, Path parent, String type) {
-        return create(new Data(null, parent, type, null, null, output));
+    public static Playlist empty(OutputStream out, Path parent, String type) {
+        return create(PlaylistIO.of(type), PlaylistIO.of(out, type), parent);
     }
 
     /**
      * Instantiates an empty playlist object.
-     * @param outpath where playlist is written after change
+     * @param out where playlist is written after change
      * @param parent base folder of the playlist
      * @param type playlist type
+     * @return
      */
-    public static Playlist empty(Path outpath, Path parent, String type) {
-        return create(new Data(null, parent, type, null, outpath, null));
+    public static Playlist empty(Path out, Path parent) {
+        PlaylistIO outio = PlaylistIO.of(out);
+        return create(PlaylistIO.of(outio.getType()), outio, parent);
     }
 
-    private static Optional<Kind> getKind(String type) {
-        return kinds.stream().filter(t -> t.extension.equals(type)).findFirst();
-    }
-
-    private static Playlist create(Data data) {
-        IOFunction<Data, Playlist> creater = getKind(data.type).map(t -> t.creater).orElseThrow(
-            () -> new RuntimeException("Playlist type not supported: " + data.type)
-        );
-        try {
-            return creater.apply(data);
+    private static Playlist create(PlaylistIO in, PlaylistIO out, Path parent) {
+        Playlist list = new Playlist(in, out, parent);
+        if ((in.getPath() != null) && !Files.isRegularFile(in.getPath())) {
+            throw new RuntimeException("Playlist not found: " + in.getPath().toString());
         }
-        catch (IOException ex) {
-            throw new RuntimeException(ex.getMessage(), ex.getCause());
+        if (in.hasInput()) {
+            try {
+                System.err.format("PLAYLIST: reading %s\n", in.getName());
+                in.fill(list, (options.getCheck() == Check.ONLY));
+            }
+            catch (IOException ex) {
+                throw new RuntimeException(ex.getMessage(), ex.getCause());
+            }
         }
+        return list;
     }
 
-    /**
-     * Returns true if type of playlist file is supported.
-     * @param path playlist file
-     */
-    public static boolean isSupported(Path path) {
-        String name = path.getFileName().toString();
-        int pos = name.lastIndexOf('.');
-        if (pos > 0) name = name.substring(pos + 1);
-        return getKind(name).isPresent();
-    }
-
-    protected Data data;
-    protected final List<Entry> songs = new ArrayList<>();
+    private PlaylistIO input;
+    private PlaylistIO output;
+    private Path parent;
+    private final List<Entry> songs = new ArrayList<>();
     private boolean changed = false;
 
-    protected Playlist(Data data) throws IOException {
-        this.data = data;
-        if ((data.path != null) || (data.input != null)) {
-            String descr = (data.path != null) ? data.path.toString() : data.name;
-            System.err.format("PLAYLIST: reading %s\n", descr);
-            fill(options.getCheck() == Check.ONLY);
-        }
+    private Playlist(PlaylistIO in, PlaylistIO out, Path parent) {
+        this.input = in;
+        this.output = out;
+        this.parent = parent;
     }
 
-    protected abstract void fill(boolean onlycheck) throws IOException;
-
-    protected abstract void save() throws IOException;
-
     public boolean isStdio() {
-        return ((data.input != null) || (data.output != null));
+        return ((input.getInput() != null) || (output.getOutput() != null));
     }
 
     public boolean isOutio() {
-        return ((data.outpath != null) && !data.outpath.equals(data.path));
+        return ((output.getPath() != null) && !input.sameIO(output));
     }
 
     public Path getBase() {
-        return data.parent;
+        return parent;
     }
 
     public Path getPath() {
-        return data.path;
+        return input.getPath();
     }
 
     public String getName() {
-        return data.name;
+        return input.getName();
     }
 
     public List<Entry> getEntries() {
@@ -259,10 +173,10 @@ public abstract class Playlist {
         Stream<? extends Song> realadds = adds.filter(song -> songs.parallelStream().noneMatch(entry -> entry.equals(song)));
         realadds.forEachOrdered(song -> {
             try {
-                Entry entry = new Entry(data.parent.relativize(song.getPath()), songs.size());
+                Entry entry = new Entry(parent.relativize(song.getPath()), songs.size());
                 songs.add(entry);
                 changed = true;
-                System.err.format("%s: + %s, %s\n", data.name, entry.getFolder(), entry.getName());
+                System.err.format("%s: + %s, %s\n", input.getName(), entry.getFolder(), entry.getName());
             }
             catch (IllegalArgumentException ex) {
                 throw new RuntimeException("Song is outside of playlist base: " + song.getPath());
@@ -291,7 +205,7 @@ public abstract class Playlist {
             if (index < lowest.get()) lowest.set(index);
             offset.incrementAndGet();
             changed = true;
-            System.err.format("%s: - %s, %s\n", data.name, entry.getFolder(), entry.getName());
+            System.err.format("%s: - %s, %s\n", input.getName(), entry.getFolder(), entry.getName());
         });
         if (lowest.get() < Integer.MAX_VALUE) {
             for (int i = lowest.get(); i < songs.size(); i++) {
@@ -334,12 +248,11 @@ public abstract class Playlist {
     }
 
     public void write(boolean sorted) {
-        if ((data.outpath == null) && (data.output == null)) return;
-        String descr = (data.output != null) ? "<stdout>" : data.outpath.getFileName().toString();
-        System.err.format("PLAYLIST: writing %s\n", descr);
+        if (!output.hasOutput()) return;
+        System.err.format("PLAYLIST: writing %s\n", output.getName());
         if (sorted) sort();
         try {
-            if (!options.isDryrun() || (data.output != null)) save();
+            if (!options.isDryrun() || (output.getOutput() != null)) output.save(this);
             changed = false;
         }
         catch (RuntimeException ex) {
@@ -374,11 +287,15 @@ public abstract class Playlist {
     }
 
     private Entry setSong(int index, Path path) {
-        Entry entry = new Entry(data.parent.relativize(path), index);
+        Entry entry = new Entry(parent.relativize(path), index);
         songs.set(index, entry);
-        System.err.format("%s: = %s, %s\n", data.name, entry.getFolder(), entry.getName());
+        System.err.format("%s: = %s, %s\n", input.getName(), entry.getFolder(), entry.getName());
         changed = true;
         return entry;
+    }
+
+    Entry entryOf(Path relfile, int index) {
+        return new Entry(relfile, index);
     }
 
     /**
@@ -390,8 +307,8 @@ public abstract class Playlist {
         private Path relpath;
         private int index;
 
-        Entry(Path relfile, int index) {
-            super(data.parent.resolve(relfile));
+        private Entry(Path relfile, int index) {
+            super(parent.resolve(relfile));
             this.relpath = relfile.getParent();
             this.index = index;
         }
@@ -425,79 +342,6 @@ public abstract class Playlist {
         @Override
         public int compareTo(Song other) {
             return getPath().toString().compareToIgnoreCase(((Entry)other).getPath().toString());
-        }
-    }
-
-    /**
-     * Intern subclass represents m3u (iso8859-1) playlists.
-     * Currently #EXT lines are not supported
-     */
-    private static class M3u extends Playlist {
-
-        protected M3u(Data data) throws IOException {
-            super(data);
-        }
-
-        @Override
-        protected void fill(boolean onlycheck) throws IOException {
-            fillwithcs(StandardCharsets.ISO_8859_1, onlycheck);
-        }
-
-        protected void fillwithcs(Charset cs, boolean onlycheck) throws IOException {
-            AtomicInteger count = new AtomicInteger(0);
-            Reader backend = (data.input == null) ? new FileReader(data.path.toFile(), cs) : new InputStreamReader(data.input, cs);
-            BufferedReader reader = new BufferedReader(backend);
-            try (reader) {
-                reader.lines().forEach(line -> {
-                    line = line.trim();
-                    if (line.isEmpty()) return;
-                    if (line.startsWith("#")) return;
-                    line = line.replace("\\", "/");
-                    line = line.replace("%20", " ");
-                    try {
-                        int c = count.getAndIncrement();
-                        songs.add(new Entry(Paths.get(line), c));
-                    }
-                    catch (Exception ex) {
-                        if (!onlycheck) throw ex;
-                        System.err.println(ex.getMessage());
-                    }
-                });
-            }
-        }
-
-        @Override
-        protected void save() throws IOException {
-            savewithcs(StandardCharsets.ISO_8859_1) ;
-        }
-
-        protected void savewithcs(Charset cs) throws IOException {
-            PrintWriter out = (data.output == null) ? new PrintWriter(data.outpath.toFile(), cs) : new PrintWriter(data.output, true, cs);
-            try (out) {
-                songs.forEach(song -> out.println(song.getEntry()));
-            }
-
-        }
-    }
-
-    /**
-     * Intern subclass represents m3u8 (utt-8) playlists.
-     * Currently #EXT lines are not supported
-     */
-    private static class M3u8 extends M3u {
-
-        protected M3u8(Data data) throws IOException {
-            super(data);
-        }
-
-        @Override
-        protected void fill(boolean onlycheck) throws IOException {
-            fillwithcs(StandardCharsets.UTF_8, onlycheck);
-        }
-
-        @Override
-        protected void save() throws IOException {
-            savewithcs(StandardCharsets.UTF_8) ;
         }
     }
 }
