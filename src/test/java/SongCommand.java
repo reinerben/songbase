@@ -10,6 +10,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -39,6 +40,7 @@ public class SongCommand {
     }
 
     private String name;
+    private EnumSet<SongBaseTest.TestOption> options = EnumSet.noneOf(SongBaseTest.TestOption.class);
     private final List<FileCheck> checks = new ArrayList<>();
 
     private Path rundir;
@@ -46,8 +48,9 @@ public class SongCommand {
     private StdIo usedIO = new StdIo();
     private String[] args;
 
-    public SongCommand(String name, String command) {
+    public SongCommand(String name, String command, SongBaseTest.TestOption... option) {
         this.name = name;
+        Arrays.stream(option).forEach(o -> this.options.add(o));
         try {
             rundir = Files.createDirectories(getRundir(name));
             cmpdir = Files.createDirectories(getCmpdir(name));
@@ -98,7 +101,7 @@ public class SongCommand {
         Path inres = null;
         Path outres = null;
         try {
-            if (">".equals(prefix)) {
+            if (">".equals(prefix) || "2>".equals(prefix)) {
                 res = Paths.get(left);
                 inres = rundir.resolve(Paths.get("out_" + res.getFileName().toString()));
             }
@@ -112,12 +115,12 @@ public class SongCommand {
                 }
                 inres = rundir.resolve("in_" + res.getFileName().toString());
                 Files.copy(res, inres);
-                createSongs(inres);
+                if (!options.contains(SongBaseTest.TestOption.NOCREATE)) createSongs(inres);
             }
             if (right != null) {
                 if (!right.isEmpty()) res = SongBaseTest.resourcePath("/" + right);
                 outres = cmpdir.resolve("cmp_" + res.getFileName().toString());
-                Files.copy(res, outres);
+                copyFile(res, outres);
             }
             if (outres != null) checks.add(new FileCheck(left, inres, outres));
             switch(prefix) {
@@ -193,6 +196,16 @@ public class SongCommand {
                 throw new UncheckedIOException(e);
             }
         });
+    }
+
+    private void copyFile(Path res, Path outres) throws IOException {
+        if (!res.toString().endsWith(".out") || !options.contains(SongBaseTest.TestOption.REPLACEOUT)) {
+            Files.copy(res, outres);
+            return;
+        }
+        String outctt = Files.readString(res);
+        outctt = outctt.replace("%basedir%", SongBaseTest.basedir.toString());
+        Files.writeString(outres, outctt);
     }
 
     private void cleanDirectory(Path dir) throws IOException {

@@ -15,6 +15,8 @@ public class SongBaseTest {
     public static final Path basedir = Paths.get(System.getProperty("basedir"));
     public static final Path testdir = basedir.resolve("target/test");
 
+    public static enum TestOption { NOCREATE, REPLACEOUT };
+
     public static Path resourcePath(String resource) throws FileNotFoundException, URISyntaxException {
         URL url = SongBaseTest.class.getResource(resource);
         if (url == null) throw new FileNotFoundException(resource);
@@ -51,6 +53,9 @@ public class SongBaseTest {
     @TestFactory
     DynamicTest[] allTests() {
         return new DynamicTest[] {
+            // check tests
+            songTest("check1", "--base=%run% --check %Playsorted1.m3u% 2>%check1.out=check/check1.out%"),
+            songTest("check2", "--base=%run% --check %Playsorted2.m3u8% 2>%check2.out=check/check2.out%", TestOption.NOCREATE, TestOption.REPLACEOUT),
             // convert tests
             songTest("convert1", "--out %=Playsorted1.m3u8% %=Playsorted1.m3u%"),
             songTest("convert2", "--out %=Playsorted2.m3u%  %=Playsorted2.m3u8%"),
@@ -72,7 +77,7 @@ public class SongBaseTest {
         };
     }
 
-    DynamicTest songTest(String name, String command) {
-        return DynamicTest.dynamicTest(name + " Test", () -> new SongCommand(name, command).call());
+    DynamicTest songTest(String name, String command, TestOption... option) {
+        return DynamicTest.dynamicTest(name + " Test", () -> new SongCommand(name, command, option).call());
     }
 }
