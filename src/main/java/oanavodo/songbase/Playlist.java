@@ -274,6 +274,10 @@ public abstract class Playlist {
         add(Stream.of(song));
     }
 
+    void add(Entry entry) {
+        songs.add(entry);
+    }
+
     public void remove(Stream<? extends Song> rems) {
         Stream<Integer> realrems = rems.parallel()
             .map(song -> songs.parallelStream().filter(entry -> entry.equals(song)).map(entry -> entry.getIndex()).findAny().orElse(-1))
@@ -386,7 +390,7 @@ public abstract class Playlist {
         private Path relpath;
         private int index;
 
-        private Entry(Path relfile, int index) {
+        Entry(Path relfile, int index) {
             super(data.parent.resolve(relfile));
             this.relpath = relfile.getParent();
             this.index = index;
