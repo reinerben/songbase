@@ -100,7 +100,6 @@ public class Playlist {
      * Instantiates an empty playlist object.
      * @param out where playlist is written after change
      * @param parent base folder of the playlist
-     * @param type playlist type
      * @return
      */
     public static Playlist empty(Path out, Path parent) {

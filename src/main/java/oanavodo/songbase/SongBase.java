@@ -82,14 +82,12 @@ public class SongBase {
         // empty playlist
         if (arg == null) {
             if (root == null) root = Paths.get("").toAbsolutePath();
-            if (type == null) type = "m3u";
             return (outpath == null) ? Playlist.empty(System.out, root, type) : Playlist.empty(outpath, root);
         }
 
         // playlist from stdin
         if (arg.equals("-")) {
             if (root == null) root = Paths.get("").toAbsolutePath();
-            if (type == null) type = "m3u";
             return (outpath == null) ? Playlist.of(System.in, System.out, root, type) : Playlist.of(System.in, outpath, root, type);
         }
 

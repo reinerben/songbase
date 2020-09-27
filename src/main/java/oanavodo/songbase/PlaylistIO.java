@@ -53,9 +53,10 @@ abstract class PlaylistIO {
     }
 
     private static PlaylistIO create(Path path, InputStream in, OutputStream out, String type) {
+        final String type1 = (type == null) ? "m3u" : type;
         try {
             PlaylistIO io =  Optional.ofNullable(creators.get(type)).orElseThrow(
-                () -> new RuntimeException("Playlist type not supported: " + type)
+                () -> new RuntimeException("Playlist type not supported: " + type1)
             ).apply(path, in, out);
             io.setType(type);
             return io;
