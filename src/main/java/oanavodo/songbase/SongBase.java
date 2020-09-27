@@ -7,7 +7,9 @@ import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
+import java.util.LinkedList;
 import java.util.Map;
+import java.util.Queue;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -69,7 +71,7 @@ public class SongBase {
         Path outpath = null;
         if ((out != null) && !out.equals("-")) {
             try {
-                if (out.isBlank()) throw new InvalidPathException(out, "Empty path not allowed");
+                if (out.isBlank()) throw new InvalidPathException(out, "Empty output path not allowed");
                 outpath = Paths.get(out);
             }
             catch (InvalidPathException ex) {
@@ -94,7 +96,7 @@ public class SongBase {
         // playlist from file
         Path inpath;
         try {
-            if (arg.isBlank()) throw new InvalidPathException(arg, "Empty path not allowed");
+            if (arg.isBlank()) throw new InvalidPathException(arg, "Empty playlist path not allowed");
             inpath = Paths.get(arg);
         }
         catch (InvalidPathException ex) {
@@ -103,15 +105,14 @@ public class SongBase {
         return (out == null) ? Playlist.of(inpath) : (outpath == null) ? Playlist.of(inpath, System.out, type) : Playlist.of(inpath, outpath);
     }
 
-    public static PlaylistList args2Factory(String[] args, Path root, String type, String out) {
+    public static PlaylistList args2Factory(Queue<String> args, Path root, String type, String out) {
         PlaylistList factory = new PlaylistList(root, false);
         boolean stdio = false;
         boolean outio = false;
-        int i = 0;
-        while (i < args.length) {
-            Playlist list = arg2Playlist(args[i], root, type, out);
+        while (!args.isEmpty()) {
+            Playlist list = arg2Playlist(args.poll(), root, type, out);
             if (list.isOutio()) {
-                if (outio) throw new RuntimeException("output file can only be specified for one playlist");
+                if (outio) throw new RuntimeException("Only one playlist can be specified if '--out' option is used");
                 outio = true;
             }
             if (list.isStdio()) {
@@ -119,7 +120,6 @@ public class SongBase {
                 stdio = true;
             }
             factory.addPlaylist(list);
-            i++;
         }
         return factory;
     }
@@ -132,6 +132,7 @@ public class SongBase {
 
             Operation command = Operation.NONE;
             Options options = new Options();
+            Queue<String> paras = new LinkedList<>();
             Path root = null;
             String from = null;
             Path into = null;
@@ -144,8 +145,11 @@ public class SongBase {
             boolean sorted = false;
             int i = 0;
             while (i < args.length) {
-                if (!args[i].startsWith("--")) break;
                 String option = args[i++];
+                if (!option.startsWith("--")) {
+                    paras.add(option);
+                    continue;
+                }
                 String value = "";
                 int pos = option.indexOf("=");
                 if (pos > 0) {
@@ -265,8 +269,8 @@ public class SongBase {
                 new PlaylistList(root, true);
                 break;
             case SELECT: {
-                if (i >= args.length) throw new RuntimeException("Please supply input playlist[s] or specify - for stdin");
-                PlaylistList factory = args2Factory(Arrays.copyOfRange(args, i, args.length), root, type, null);
+                if (paras.isEmpty()) throw new RuntimeException("Please supply input playlist[s] or specify - for stdin");
+                PlaylistList factory = args2Factory(paras, root, type, null);
                 if (root == null) root = factory.getBase();
                 final String fsearch = search;
                 Playlist result = arg2Playlist(null, root, type, out);
@@ -279,8 +283,8 @@ public class SongBase {
                 break;
             }
             case SORT: {
-                if (i >= args.length) throw new RuntimeException("Please supply input playlist[s] or specify - for stdin");
-                PlaylistList factory = args2Factory(Arrays.copyOfRange(args, i, args.length), root, type, out);
+                if (paras.isEmpty()) throw new RuntimeException("Please supply input playlist[s] or specify - for stdin");
+                PlaylistList factory = args2Factory(paras, root, type, out);
                 factory.stream()
                     .peek(list -> System.err.format("SONGBASE: Sort %s\n", list.getName()))
                     .forEach(list -> list.sort());
@@ -288,8 +292,8 @@ public class SongBase {
                 break;
             }
             case SHUFFLE: {
-                if (i >= args.length) throw new RuntimeException("Please supply input playlist[s] or specify - for stdin");
-                PlaylistList factory = args2Factory(Arrays.copyOfRange(args, i, args.length), root, type, out);
+                if (paras.isEmpty()) throw new RuntimeException("Please supply input playlist[s] or specify - for stdin");
+                PlaylistList factory = args2Factory(paras, root, type, out);
                 final int gap = shufflegap;
                 factory.stream()
                     .peek(list -> System.err.format("SONGBASE: Shuffle %s\n", list.getName()))
@@ -299,8 +303,8 @@ public class SongBase {
             }
             case ADD: {
                 PlaylistList factory;
-                if (i < args.length) {
-                    factory = args2Factory(Arrays.copyOfRange(args, i, args.length), root, type, out);
+                if (!paras.isEmpty()) {
+                    factory = args2Factory(paras, root, type, out);
                 }
                 else {
                     if (root == null) root = Paths.get("").toAbsolutePath();
@@ -316,8 +320,8 @@ public class SongBase {
             }
             case REMOVE: {
                 PlaylistList factory;
-                if (i < args.length) {
-                    factory = args2Factory(Arrays.copyOfRange(args, i, args.length), root, type, out);
+                if (!paras.isEmpty()) {
+                    factory = args2Factory(paras, root, type, out);
                 }
                 else {
                     if (root == null) root = Paths.get("").toAbsolutePath();
@@ -332,8 +336,8 @@ public class SongBase {
                 break;
             }
             case UNION: {
-                if (i >= args.length) throw new RuntimeException("Please supply input playlist or specify - for stdin");
-                PlaylistList factory = args2Factory(Arrays.copyOfRange(args, i, args.length), root, type, null);
+                if (paras.isEmpty()) throw new RuntimeException("Please supply input playlist[s] or specify - for stdin");
+                PlaylistList factory = args2Factory(paras, root, type, null);
                 if (root == null) root = factory.getBase();
                 Playlist result = arg2Playlist(null, root, type, out);
                 result.add(
@@ -344,8 +348,9 @@ public class SongBase {
                 break;
             }
             case INTERSECT: {
-                if (i >= args.length) throw new RuntimeException("Please supply input playlist or specify - for stdin");
-                Playlist thiz = arg2Playlist(args[i], root, type, null);
+                if (paras.isEmpty()) throw new RuntimeException("Please supply input playlist or specify - for stdin");
+                if (paras.size() > 1) throw new RuntimeException("Only one playlist argument  can be specified for '--intersect' operation");
+                Playlist thiz = arg2Playlist(paras.poll(), root, type, null);
                 if (root == null) root = thiz.getBase();
                 Playlist that = Playlist.of(into);
                 Playlist result = arg2Playlist(null, root, type, out);
@@ -357,8 +362,9 @@ public class SongBase {
                 break;
             }
             case MAP: {
-                if (i >= args.length) throw new RuntimeException("Please supply input playlist or specify - for stdin");
-                Playlist that = arg2Playlist(args[i], root, type, out);
+                if (paras.isEmpty()) throw new RuntimeException("Please supply input playlist or specify - for stdin");
+                if (paras.size() > 1) throw new RuntimeException("Only one playlist argument can be specified for '--map' operation");
+                Playlist that = arg2Playlist(paras.poll(), root, type, out);
                 if (root == null) root = that.getBase();
                 PlaylistList factory = new PlaylistList(root, true);
                 factory.removePlaylist(that);
@@ -402,8 +408,10 @@ public class SongBase {
                 break;
             }
             default:
-                if ((i >= args.length) || (out == null)) break;
-                Playlist thiz = arg2Playlist(args[i], root, type, out);
+                if (paras.isEmpty()) break;
+                if (out == null) throw new RuntimeException("Please specify an operation option");
+                if (paras.size() > 1) throw new RuntimeException("Only one playlist can be specified if '--out' option is used");
+                Playlist thiz = arg2Playlist(paras.poll(), root, type, out);
                 thiz.write(sorted);
                 break;
             }
