@@ -54,13 +54,13 @@ public class SongBaseTest {
     DynamicTest[] allTests() {
         return new DynamicTest[] {
             // check tests
-            songTest("check1", "--base=%run% --check %Playsorted1.m3u% 2>%check1.out=check/check1.out%"),
-            songTest("check2", "--base=%run% --check %Playsorted2.m3u8% 2>%check2.out=check/check2.out%", TestOption.NOCREATE, TestOption.REPLACEOUT),
+            songTest("check1", "--base=%run% --check %Playsorted1.m3u% 2>%=check/check1.out%"),
+            songTest("check2", "--base=%run% --check %Playsorted2.m3u8% 2>%=check/check2.out%", TestOption.NOCREATE, TestOption.REPLACEOUT),
             // convert tests
             songTest("convert1", "--out %=Playsorted1.m3u8% %=Playsorted1.m3u%"),
             songTest("convert2", "--out %=Playsorted2.m3u%  %=Playsorted2.m3u8%"),
-            songTest("convert3", "--type=m3u --out %=Playsorted2.m3u8% <%Playsorted2.m3u%"),
-            songTest("convert4", "--type=m3u --out - %=Playsorted1.m3u8% >%=Playsorted1.m3u%"),
+            songTest("convert3", "--type=m3u --out %=Playsorted1.m3u8% <%convert1:Playsorted1.m3u%"),
+            songTest("convert4", "--type=m3u --out - %convert2:Playsorted2.m3u8% >%=Playsorted2.m3u%"),
             // map tests
             songTest("map1", "--base=%run% --map Rock=Other %map/map1input.m3u=map/map1result3.m3u% @%Playsorted1.m3u=map/map1result1.m3u% @%Playsorted2.m3u8=map/map1result2.m3u8%"),
             // shuffle and sort tests
