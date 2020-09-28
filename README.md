@@ -9,6 +9,7 @@ A tool to maintain and operate on playlists.
 * Combine playlists to one list
 * Remove content of one playlist from others
 * Extract common entries of two playlists
+* Convert playlists
 
 Currently only m3u and m3u8 playlist formats are supported. Both without comment extensions.
 
@@ -17,8 +18,7 @@ Usage: *songBase [\<options\>] [\<list\> ...]*
 
 ### Arguments:
 *\<list\>* Path to a playlist or '*-*' if playlist should be read from standard input.
-If the playlist path is prefixed by '*-*' this playlist file is read in but the result is written to standard output.
-'*-*' or '*-\<list\>*' can only be specified once.
+'*-*' can only be specified once.
 Otherwise some operations allow to specify more than one playlist.
 
 Currently only m3u (ISO8859-1) and m3u8 (UTF-8) playlist types are supported.
@@ -26,6 +26,11 @@ Currently only m3u (ISO8859-1) and m3u8 (UTF-8) playlist types are supported.
 ### Options:
 ***--base \<dir\>***  
 Base folder for searching playlists. If playlists *\<list\>* are specified it defaults to the folder of the first playlist. If '*-*' is specified it defaults to the current working directory.
+
+***--out \<file\>***
+If a playlist has been modified the changes are written to the specified file.
+If '-' is specified for \<file\> the playlist is written to standard output.
+If option '--out' is used only one playlist argument can be specified.
 
 ***--dryrun***  
 No changes are made. Only report what would be done.
@@ -51,24 +56,26 @@ Playlist type when reading from standard input and writing to standard output (d
 Display this help
 
 ### Operations:
+If no operation is specified but the '--out' option with one playlist argument the playlist format can be converted.
 ***--map \<a\>=\<b\>***  
 Move all songs from folder *\<a\>* found in playlist *\<list\>* to folder *\<b\>*.
 Only one playlist argument is allowed.
 All other playlists found in the base folder are updated to reflect this move.
-This is the default operation if no other is given and songs are moved from folder '`Neu`' to '`Rock`'.
-A special behavior in this default operation is that if there is a folder with the name of the interpret
-then the song is moved to this folder instead of '`Rock`'.
+A special behavior in this operation (if not switched of with option '--nointerpret') is that if there is a folder
+with the name of the interpret then the song is moved to this folder instead of \<b\>.
 
 ***--check***  
 Only check all playlists found in the base folder (defaults to working directory) if their songs exist.
 
 ***--sort***  
 Sorts all playlists supplied as arguments.
-If solely '*-*' or *\<list\>* is specified standard input resp. playlist *\<list\>* is sorted and written to standard output.
+If solely '*-*' is specified standard input is sorted and written to standard output.
+If option '--out \<file\>' is specified the output is written to the specified file.
 
 ***--shuffle [\<gap\>]***  
 Shuffles all playlists supplied as arguments.
-If solely '*-*' or *-\<list\>* is specified standard input resp. playlist *\<list\>* is shuffled and written to standard output.
+If solely '*-*' standard input is shuffled and written to standard output.
+If option '--out \<file\>' is specified the output is written to the specified file.
 *\<gap\>* is an optional number of songs which should be between songs of same interpret (default: 5).
 Please note that the gap also depends on the variety of interprets and may be lower than requested.
 
@@ -80,12 +87,14 @@ The search is case sensitive.
                     
 ***--add \<list2\>***  
 Add content of playlist *\<list2\>* to all playlists supplied as arguments.
-If solely '-' or *-\<list\>* is specified the union of standard input resp. playlist *\<list\>* and *\<list2\>* are written to standard output.
+If solely '-' is specified the union of standard input and *\<list2\>* are written to standard output.
+If option '--out \<file\>' is specified the output is written to the specified file.
 If no playlist is supplied as argument the songs from *\<list2\>* are added to all playlists found in the base folder.
                     
 ***--remove \<list2\>***  
 Remove content of playlist *\<list2\>* from all playlists supplied as arguments. 
-If solely '-' or *-\<list\>* is specified the differences between standard input resp. playlist *\<list\>* and *\<list2\>* are written to standard output.
+If solely '-' is specified the differences between standard input and *\<list2\>* are written to standard output.
+If option '--out \<file\>' is specified the output is written to the specified file.
 If no playlist is supplied as argument the songs from *\<list2\>* are removed from all playlists found in the base folder.
                     
 ***--union***  
