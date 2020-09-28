@@ -1,4 +1,4 @@
-package oanavodo.songbase;
+package oanavodo.songbase.playlist;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -10,7 +10,10 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
+import oanavodo.songbase.Options;
 import oanavodo.songbase.Options.Check;
+import oanavodo.songbase.ShuffleList;
+import oanavodo.songbase.Song;
 
 /**
  * Represents a playlist.

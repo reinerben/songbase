@@ -1,5 +1,7 @@
 package oanavodo.songbase;
 
+import oanavodo.songbase.playlist.PlaylistList;
+import oanavodo.songbase.playlist.Playlist;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -44,15 +46,14 @@ public class SongBase {
             "--check             Only check all playlists found in the base folder (defaults to working directory) if their songs exist.",
             "--sort              Sorts all playlists supplied as arguments. If solely '-' is specified standard input is sorted and written",
             "                    to standard output. If option '--out <file>' is specified the output is written to the specified file.",
-            "--shuffle [<gap>]   Shuffles all playlists supplied as arguments. <gap> is an optional number of songs. If solely '-' is specified",
-            "                    standard input is shuffled and written to standard output. If option '--out <file>' is specified the output is ",
-            "                    written to the specified file.",
-            "                    which should be between songs of same interpret (default: 5). Please note that the gap also depends",
-            "                    on the variety of interprets and may be lower than requested.",
+            "--shuffle [<gap>]   Shuffles all playlists supplied as arguments. If solely '-' is specified standard input is shuffled and written",
+            "                    to standard output. If option '--out <file>' is specified the output is written to the specified file.",
+            "                    <gap> is an optional number of songs which should be between songs of same interpret (default: 5). Please note",
+            "                    that the gap also depends on the variety of interprets and may be lower than requested.",
             "--select <text>     Write entries of playlist <list> which contains text <text> to standard output. Multiple playlist arguments",
             "                    are allowed. The text is searched in the folder, interpret and title part. The search is case sensitive.",
             "--add <list2>       Add content of playlist <list2> to all playlists supplied as arguments. If solely '-' is specified the union",
-            "                    of standard input and <list2> are written to standard output.  If option '--out <file>' is specified the output",
+            "                    of standard input and <list2> are written to standard output. If option '--out <file>' is specified the output",
             "                    is written to the specified file. If no playlist is supplied as argument the songs from <list2> are added to all",
             "                    playlists found in the base folder.",
             "--remove <list2>    Remove content of playlist <list2> from all playlists supplied as arguments. If solely '-' is specified the",

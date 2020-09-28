@@ -1,3 +1,5 @@
+package oanavodo.songbase.test;
+
 
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -17,9 +19,10 @@ import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import oanavodo.songbase.Options;
 import oanavodo.songbase.Options.Check;
-import oanavodo.songbase.Playlist;
 import oanavodo.songbase.Song;
 import oanavodo.songbase.SongBase;
+import oanavodo.songbase.playlist.Playlist;
+import oanavodo.songbase.test.SongBaseTest.TestOption;
 import org.opentest4j.AssertionFailedError;
 
 public class SongCommand {
@@ -40,7 +43,7 @@ public class SongCommand {
     }
 
     private String name;
-    private EnumSet<SongBaseTest.TestOption> options = EnumSet.noneOf(SongBaseTest.TestOption.class);
+    private EnumSet<TestOption> options = EnumSet.noneOf(TestOption.class);
     private final List<FileCheck> checks = new ArrayList<>();
 
     private Path rundir;
@@ -48,7 +51,7 @@ public class SongCommand {
     private StdIo usedIO = new StdIo();
     private String[] args;
 
-    public SongCommand(String name, String command, SongBaseTest.TestOption... option) {
+    public SongCommand(String name, String command, TestOption... option) {
         this.name = name;
         Arrays.stream(option).forEach(o -> this.options.add(o));
         try {
@@ -115,7 +118,7 @@ public class SongCommand {
                 }
                 inres = rundir.resolve("in_" + res.getFileName().toString());
                 Files.copy(res, inres);
-                if (!options.contains(SongBaseTest.TestOption.NOCREATE)) createSongs(inres);
+                if (!options.contains(TestOption.NOCREATE)) createSongs(inres);
             }
             if (right != null) {
                 if (!right.isEmpty()) res = SongBaseTest.resourcePath("/" + right);
@@ -181,9 +184,9 @@ public class SongCommand {
     }
 
     private void createSongs(Path path) {
-        Options options = new Options();
-        options.setCheck(Check.NO);
-        Song.setOptions(options);
+        Options options2 = new Options();
+        options2.setCheck(Check.NO);
+        Song.setOptions(options2);
         Playlist list = Playlist.of(path);
         list.entries().forEach(song -> {
             Path spath = rundir.resolve(song.getFolder()).resolve(song.getName());
@@ -199,7 +202,7 @@ public class SongCommand {
     }
 
     private void copyFile(Path res, Path outres) throws IOException {
-        if (!res.toString().endsWith(".out") || !options.contains(SongBaseTest.TestOption.REPLACEOUT)) {
+        if (!res.toString().endsWith(".out") || !options.contains(TestOption.REPLACEOUT)) {
             Files.copy(res, outres);
             return;
         }

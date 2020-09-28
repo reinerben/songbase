@@ -1,10 +1,14 @@
-package oanavodo.songbase;
+package oanavodo.songbase.playlist;
 
+import oanavodo.songbase.playlist.Playlist;
+import oanavodo.songbase.playlist.PlaylistIO;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Stream;
+import oanavodo.songbase.Options;
+import oanavodo.songbase.Song;
 
 /**
  * Represents a (possibly empty) list of playlists.

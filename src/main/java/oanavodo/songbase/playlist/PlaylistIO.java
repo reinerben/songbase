@@ -1,4 +1,4 @@
-package oanavodo.songbase;
+package oanavodo.songbase.playlist;
 
 import java.io.BufferedReader;
 import java.io.FileReader;
@@ -16,9 +16,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
-import oanavodo.songbase.Playlist.Entry;
+import oanavodo.songbase.playlist.Playlist.Entry;
 
-abstract class PlaylistIO {
+public abstract class PlaylistIO {
 
     @FunctionalInterface
     private interface Creator {
@@ -36,19 +36,19 @@ abstract class PlaylistIO {
     protected OutputStream output;
     private String type;
 
-    static PlaylistIO of(Path path) {
+    public static PlaylistIO of(Path path) {
         return create(path, null, null, detectType(path));
     }
 
-    static PlaylistIO of(InputStream in, String type) {
+    public static PlaylistIO of(InputStream in, String type) {
         return create(null, in, null, type);
     }
 
-    static PlaylistIO of(OutputStream out, String type) {
+    public static PlaylistIO of(OutputStream out, String type) {
         return create(null, null, out, type);
     }
 
-    static PlaylistIO of(String type) {
+    public static PlaylistIO of(String type) {
         return create(null, null, null, type);
     }
 
@@ -69,6 +69,7 @@ abstract class PlaylistIO {
     /**
      * Returns true if type of playlist file is supported.
      * @param path playlist file
+     * @return
      */
     public static boolean isSupported(Path path) {
         return isSupported(detectType(path));
@@ -77,6 +78,7 @@ abstract class PlaylistIO {
     /**
      * Returns true if type of playlist file is supported.
      * @param type playlist type
+     * @return
      */
     public static boolean isSupported(String type) {
         return creators.containsKey(type);
