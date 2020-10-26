@@ -111,6 +111,7 @@ public class Playlist {
     }
 
     private static Playlist create(PlaylistIO in, PlaylistIO out, Path parent) {
+        parent = parent.normalize().toAbsolutePath();
         Playlist list = new Playlist(in, out, parent);
         if ((in.getPath() != null) && !Files.isRegularFile(in.getPath())) {
             throw new RuntimeException("Playlist not found: " + in.getPath().toString());
@@ -310,7 +311,7 @@ public class Playlist {
         private int index;
 
         private Entry(Path relfile, int index) {
-            super(parent.resolve(relfile));
+            super(parent.resolve(relfile).normalize());
             this.relpath = relfile.getParent();
             this.index = index;
         }

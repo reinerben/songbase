@@ -1,7 +1,5 @@
 package oanavodo.songbase;
 
-import oanavodo.songbase.playlist.PlaylistList;
-import oanavodo.songbase.playlist.Playlist;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -16,6 +14,8 @@ import java.util.TreeMap;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import oanavodo.songbase.Options.Check;
+import oanavodo.songbase.playlist.Playlist;
+import oanavodo.songbase.playlist.PlaylistList;
 
 public class SongBase {
 
@@ -43,7 +43,8 @@ public class SongBase {
             "                    All other playlists found in the base folder are updated to reflect this move.",
             "                    A special behavior in this operation (if not switched of with option '--nointerpret') is that if there is a",
             "                    folder with the name of the interpret then the song is moved to this folder instead of <b>.",
-            "--check             Only check all playlists found in the base folder (defaults to working directory) if their songs exist.",
+            "--check             Only check if the songs of a playlist exists. If no playlist arguments are supplied all playlists found in the",
+            "                    base folder (defaults to working directory) are checked. Otherwise only the supplied playlist[s] are checked.",
             "--sort              Sorts all playlists supplied as arguments. If solely '-' is specified standard input is sorted and written",
             "                    to standard output. If option '--out <file>' is specified the output is written to the specified file.",
             "--shuffle [<gap>]   Shuffles all playlists supplied as arguments. If solely '-' is specified standard input is shuffled and written",
@@ -262,11 +263,18 @@ public class SongBase {
             Song.setOptions(options);
 
             switch(command) {
-            case CHECKONLY:
+            case CHECKONLY: {
                 options.setCheck(Check.ONLY);
-                if (root == null) root = Paths.get("").toAbsolutePath();
-                new PlaylistList(root, true);
+                PlaylistList factory;
+                if (!paras.isEmpty()) {
+                    factory = args2Factory(paras, root, type, null);
+                }
+                else {
+                    if (root == null) root = Paths.get("").toAbsolutePath();
+                    factory = new PlaylistList(root, true);
+                }
                 break;
+            }
             case SELECT: {
                 if (paras.isEmpty()) throw new RuntimeException("Please supply input playlist[s] or specify - for stdin");
                 PlaylistList factory = args2Factory(paras, root, type, null);

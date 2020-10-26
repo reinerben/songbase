@@ -180,7 +180,7 @@ public abstract class PlaylistIO {
         protected void fillwithcs(Charset cs, Playlist list, boolean onlycheck) throws IOException {
             AtomicInteger count = new AtomicInteger(0);
             Reader backend = (input == null) ? new FileReader(path.toFile(), cs) : new InputStreamReader(input, cs);
-            BufferedReader reader = new BufferedReader(backend);
+            BufferedReader reader = (cs == StandardCharsets.UTF_8) ? new UTF8BufferedReader(backend) : new BufferedReader(backend);
             try (reader) {
                 reader.lines().forEach(line -> {
                     line = line.trim();
