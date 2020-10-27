@@ -58,6 +58,9 @@ public class SongBaseTest {
             // check tests
             songTest("check1", "--base=%run% --check %Playsorted1.m3u% 2>%=check/check1.out%"),
             songTest("check2", "--base=%run% --check %Playsorted2.m3u8% 2>%=check/check2.out%", TestOption.NOCREATE, TestOption.REPLACEOUT),
+            songTest("check3", "--base=%run% --check @%Playsorted1.m3u% @%Playsorted2.m3u8% 2>%=check/check3.out%"),
+            // check UTF-8 with BOM
+            songTest("check4", "--base=%run% --check %check/Playcheck4.m3u8% 2>%=check/check4.out%", TestOption.NOCREATE, TestOption.REPLACEOUT),
             // convert tests
             songTest("convert1", "--out %=Playsorted1.m3u8% %=Playsorted1.m3u%"),
             songTest("convert2", "--out %=Playsorted2.m3u%  %=Playsorted2.m3u8%"),
