@@ -31,9 +31,8 @@ public class Song implements Comparable<Song> {
         name = path.getFileName();
         interpret = name.toString();
         int end = interpret.lastIndexOf(".");
-        if (end == -1) throw new RuntimeException("Cannot detect interpret and title: " + path.toAbsolutePath().toString());
         int pos = interpret.indexOf("--");
-        if (pos == -1) throw new RuntimeException("Cannot detect interpret and title: " + path.toAbsolutePath().toString());
+        if ((end == -1) || (pos == -1)) throw new RuntimeException("Cannot detect interpret and title: " + path.toAbsolutePath().toString());
         if (interpret.charAt(pos + 2) == '-') pos++;
         title = interpret.substring(pos + 2, end);
         interpret = interpret.substring(0, pos);

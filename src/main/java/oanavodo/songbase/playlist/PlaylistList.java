@@ -1,7 +1,5 @@
 package oanavodo.songbase.playlist;
 
-import oanavodo.songbase.playlist.Playlist;
-import oanavodo.songbase.playlist.PlaylistIO;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
@@ -66,8 +64,7 @@ public class PlaylistList {
     }
 
     public void removePlaylist(Playlist list) {
-        Playlist that = lists.remove(list.getPath());
-        if (that == null) return;
+        lists.remove(list.getPath());
     }
 
     public Stream<Playlist> stream() {

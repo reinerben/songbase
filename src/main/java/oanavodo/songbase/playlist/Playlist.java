@@ -17,9 +17,7 @@ import oanavodo.songbase.Song;
 
 /**
  * Represents a playlist.
- * Since there are several playlist formats this is a abstract base class and have to be subclassed
- * by specific playlist type classes which implements fill and save methods.
- * A playlist can be read/written from/to a file or to an input/output stream.
+ * A playlist can be read/written from/to a file or from/to an input/output stream.
  * @author Reiner
  */
 public class Playlist {

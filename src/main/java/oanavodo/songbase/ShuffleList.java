@@ -49,17 +49,20 @@ public class ShuffleList<T extends Song> {
         int offset = -1;
         for (ShuffleGroup<T> group : base.values()) {
             int next = pointer + group.size();
+            // if group size with gaps is beyond overall count force this group to be next
             int min = ((group.size() - 1) * gap) + group.size();
             if (min >= count) {
                 found = group;
                 offset = -1;
             }
+            // detect alternate group with lowest block count
             if (group.isBlocked()) {
                 if ((alter == null) || (alter.getBlocked() > group.getBlocked())) {
                     alter = group;
                 }
             } else {
                 last = group;
+                // highest nonblocked group which is not beyond index should be next
                 if ((found == null) && (index < next)) {
                     found = group;
                     offset = index - pointer;
@@ -68,7 +71,9 @@ public class ShuffleList<T extends Song> {
             group.pass();
             pointer = next;
         }
+        // if nothing selected use last nonblocked group
         if (found == null) found = last;
+        // if still nothing selected use alternative
         if (found == null) found = alter;
         if (found == null) return null;
         if (offset < 0) offset = rand.nextInt(found.size());

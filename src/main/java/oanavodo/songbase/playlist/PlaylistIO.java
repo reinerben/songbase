@@ -18,6 +18,12 @@ import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import oanavodo.songbase.playlist.Playlist.Entry;
 
+/**
+ * Helper class for reading/writting from/to a playlist.
+ * Since there are several playlist formats this is a abstract base class and have to be subclassed
+ * by specific playlist type classes which implements fill and save methods.
+ * @author Reiner
+ */
 public abstract class PlaylistIO {
 
     @FunctionalInterface
@@ -36,18 +42,41 @@ public abstract class PlaylistIO {
     protected OutputStream output;
     private String type;
 
+    /**
+     * Creates an instance for file IO
+     * @param path path to playlist file
+     * @return
+     */
     public static PlaylistIO of(Path path) {
         return create(path, null, null, detectType(path));
     }
 
+    /**
+     * Creates an instance for input stream
+     * @param in playlist input string
+     * @param type playlist type
+     * @return
+     */
     public static PlaylistIO of(InputStream in, String type) {
         return create(null, in, null, type);
     }
 
+    /**
+     * Creates an instance for output stream
+     * @param out playlist output string
+     * @param type playlist type
+     * @return
+     */
     public static PlaylistIO of(OutputStream out, String type) {
         return create(null, null, out, type);
     }
 
+    /**
+     * Creates an special instance without IO.
+     * Used for empty playlists
+     * @param type playlist type
+     * @return
+     */
     public static PlaylistIO of(String type) {
         return create(null, null, null, type);
     }
@@ -84,6 +113,11 @@ public abstract class PlaylistIO {
         return creators.containsKey(type);
     }
 
+    /**
+     * Detect type of playlist by file path ending.
+     * @param path playlist path
+     * @return playlist type
+     */
     public static String detectType(Path path) {
         String name = path.getFileName().toString();
         int pos = name.lastIndexOf('.');
