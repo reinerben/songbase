@@ -15,8 +15,6 @@ import java.nio.file.Paths;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.concurrent.atomic.AtomicInteger;
-import oanavodo.songbase.playlist.Playlist.Entry;
 
 /**
  * Helper class for reading/writting from/to a playlist.
@@ -136,9 +134,9 @@ public abstract class PlaylistIO {
         this.type = type;
     }
 
-    protected abstract void fill(Playlist list, boolean onlycheck) throws IOException;
+    protected abstract void fill(PlaylistInterface list, boolean onlycheck) throws IOException;
 
-    protected abstract void save(Playlist list) throws IOException;
+    protected abstract void save(PlaylistInterface list) throws IOException;
 
     public Path getPath() {
         return path;
@@ -207,12 +205,11 @@ public abstract class PlaylistIO {
         }
 
         @Override
-        protected void fill(Playlist list, boolean onlycheck) throws IOException {
+        protected void fill(PlaylistInterface list, boolean onlycheck) throws IOException {
             fillwithcs(StandardCharsets.ISO_8859_1, list, onlycheck);
         }
 
-        protected void fillwithcs(Charset cs, Playlist list, boolean onlycheck) throws IOException {
-            AtomicInteger count = new AtomicInteger(0);
+        protected void fillwithcs(Charset cs, PlaylistInterface list, boolean onlycheck) throws IOException {
             Reader backend = (input == null) ? new FileReader(path.toFile(), cs) : new InputStreamReader(input, cs);
             BufferedReader reader = (cs == StandardCharsets.UTF_8) ? new UTF8BufferedReader(backend) : new BufferedReader(backend);
             try (reader) {
@@ -223,8 +220,7 @@ public abstract class PlaylistIO {
                     line = line.replace("\\", "/");
                     line = line.replace("%20", " ");
                     try {
-                        int c = count.getAndIncrement();
-                        list.add(list.entryOf(Paths.get(line), c));
+                        list.addEntry(list.createEntry(Paths.get(line)));
                     }
                     catch (Exception ex) {
                         if (!onlycheck) throw ex;
@@ -235,22 +231,19 @@ public abstract class PlaylistIO {
         }
 
         @Override
-        protected void save(Playlist list) throws IOException {
+        protected void save(PlaylistInterface list) throws IOException {
             savewithcs(StandardCharsets.ISO_8859_1, list) ;
         }
 
-        protected void savewithcs(Charset cs, Playlist list) throws IOException {
+        protected void savewithcs(Charset cs, PlaylistInterface list) throws IOException {
             PrintWriter out = (output == null) ? new PrintWriter(path.toFile(), cs) : new PrintWriter(output, true, cs);
             try (out) {
-                list.entries().forEach(song -> printEntry(out, song));
+                list.getEntryIterator().forEachRemaining(song -> printEntry(out, song));
             }
         }
 
-        private void printEntry(PrintWriter out, Entry entry) {
-            String record = entry.getFolder();
-            if (!record.isEmpty()) record += "/";
-            record += entry.getName().toString();
-            out.println(record);
+        private void printEntry(PrintWriter out, EntryInterface entry) {
+            out.println(entry.getEntryString());
         }
     }
 
@@ -265,12 +258,12 @@ public abstract class PlaylistIO {
         }
 
         @Override
-        protected void fill(Playlist list, boolean onlycheck) throws IOException {
+        protected void fill(PlaylistInterface list, boolean onlycheck) throws IOException {
             fillwithcs(StandardCharsets.UTF_8, list, onlycheck);
         }
 
         @Override
-        protected void save(Playlist list) throws IOException {
+        protected void save(PlaylistInterface list) throws IOException {
             savewithcs(StandardCharsets.UTF_8, list) ;
         }
     }

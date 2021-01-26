@@ -387,7 +387,7 @@ public class SongBase {
                 int countno = 0;
                 Map<Path, Integer> counts = new TreeMap<>();
                 for (Playlist.Entry song : that.getEntries()) {
-                    String folder = song.getFolder();
+                    String folder = song.getFolderString();
                     String interpret = song.getInterpret();
                     if (!folder.equals(from)) {
                         countno++;

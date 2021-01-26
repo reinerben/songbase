@@ -5,8 +5,10 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
@@ -117,7 +119,7 @@ public class Playlist {
         if (in.hasInput()) {
             try {
                 System.err.format("PLAYLIST: reading %s\n", in.getName());
-                in.fill(list, (options.getCheck() == Check.ONLY));
+                in.fill(list.getInterface(null), (options.getCheck() == Check.ONLY));
             }
             catch (IOException ex) {
                 throw new RuntimeException(ex.getMessage(), ex.getCause());
@@ -170,6 +172,10 @@ public class Playlist {
         return changed;
     }
 
+    public int size() {
+        return songs.size();
+    }
+
     public void add(Stream<? extends Song> adds) {
         Stream<? extends Song> realadds = adds.filter(song -> songs.parallelStream().noneMatch(entry -> entry.equals(song)));
         realadds.forEachOrdered(song -> {
@@ -177,7 +183,7 @@ public class Playlist {
                 Entry entry = new Entry(parent.relativize(song.getPath()), songs.size());
                 songs.add(entry);
                 changed = true;
-                System.err.format("%s: + %s, %s\n", input.getName(), entry.getFolder(), entry.getName());
+                System.err.format("%s: + %s, %s\n", input.getName(), entry.getFolderString(), entry.getNameString());
             }
             catch (IllegalArgumentException ex) {
                 throw new RuntimeException("Song is outside of playlist base: " + song.getPath());
@@ -206,7 +212,7 @@ public class Playlist {
             if (index < lowest.get()) lowest.set(index);
             offset.incrementAndGet();
             changed = true;
-            System.err.format("%s: - %s, %s\n", input.getName(), entry.getFolder(), entry.getName());
+            System.err.format("%s: - %s, %s\n", input.getName(), entry.getFolderString(), entry.getNameString());
         });
         if (lowest.get() < Integer.MAX_VALUE) {
             for (int i = lowest.get(); i < songs.size(); i++) {
@@ -230,7 +236,7 @@ public class Playlist {
     public Stream<? extends Song> select(String search) {
         return songs.stream()
             .filter(song -> (
-                song.getFolder().contains(search) ||
+                song.getFolderString().contains(search) ||
                 song.getInterpret().contains(search) ||
                 song.getTitle().contains(search)
             ));
@@ -248,12 +254,56 @@ public class Playlist {
         if (isChanged()) write(sorted);
     }
 
+    private PlaylistInterface getInterface(Iterator<Entry> iterator) {
+        return new PlaylistInterface() {
+            @Override
+            public EntryInterface createEntry(Path path) {
+                return entryOf(path, size());
+            }
+
+            @Override
+            public void addEntry(EntryInterface entry) {
+                add((Entry)entry);
+            }
+
+            @Override
+            public Iterator<? extends EntryInterface> getEntryIterator() {
+                return (iterator != null) ? iterator : songs.iterator();
+            }
+        };
+    }
+
+    private class RebaseIterator implements Iterator<Entry> {
+        private Path newbase;
+        private Iterator<Entry> iter = songs.iterator();
+
+        private RebaseIterator(Path newbase) {
+            this.newbase = newbase;
+        }
+
+        @Override
+        public boolean hasNext() {
+            return iter.hasNext();
+        }
+
+        @Override
+        public Entry next() {
+            Entry rebased = new Entry(iter.next());
+            rebased.rebase(newbase);
+            return rebased;
+        }
+    }
+
     public void write(boolean sorted) {
         if (!output.hasOutput()) return;
         System.err.format("PLAYLIST: writing %s\n", output.getName());
         if (sorted) sort();
         try {
-            if (!options.isDryrun() || (output.getOutput() != null)) output.save(this);
+            if (!options.isDryrun() || (output.getOutput() != null)) {
+                // output path may be based on another folder
+                boolean rebase = ((output.getPath() != null) && !getBase().equals(output.getPath().getParent()));
+                output.save(getInterface(rebase ? new RebaseIterator(output.getPath().getParent()) : null));
+            }
             changed = false;
         }
         catch (RuntimeException ex) {
@@ -290,7 +340,7 @@ public class Playlist {
     private Entry setSong(int index, Path path) {
         Entry entry = new Entry(parent.relativize(path), index);
         songs.set(index, entry);
-        System.err.format("%s: = %s, %s\n", input.getName(), entry.getFolder(), entry.getName());
+        System.err.format("%s: = %s, %s\n", input.getName(), entry.getFolderString(), entry.getNameString());
         changed = true;
         return entry;
     }
@@ -303,7 +353,7 @@ public class Playlist {
      * Inner class with represents a song.
      * Holds position and the path relative to the playlist location.
      */
-    public class Entry extends Song {
+    public class Entry extends Song implements EntryInterface {
 
         private Path relpath;
         private int index;
@@ -314,14 +364,34 @@ public class Playlist {
             this.index = index;
         }
 
-        public String getFolder() {
+        public Entry(Entry other) {
+            super(other);
+            this.relpath = other.relpath;
+            this.index = other.index;
+        }
+        protected void rebase(Path newbase) {
+            this.relpath = newbase.relativize(getPath()).getParent();
+        }
+
+        public Path getFolder() {
+            return (relpath != null) ? relpath: Paths.get("");
+        }
+
+        @Override
+        public String getFolderString() {
             return (relpath != null) ? relpath.toString().replace("\\", "/") : "";
         }
 
-        public String getEntry() {
-            String entry = getFolder();
+        @Override
+        public String getNameString() {
+            return getName().toString();
+        }
+
+        @Override
+        public String getEntryString() {
+            String entry = getFolderString();
             if (!entry.isEmpty()) entry += "/";
-            entry += getName().toString();
+            entry += getNameString();
             return entry;
         }
 
