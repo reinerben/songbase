@@ -62,10 +62,12 @@ public class SongBaseTest {
             // check UTF-8 with BOM
             songTest("check4", "--base=%run% --check %check/Playcheck4.m3u8% 2>%=check/check4.out%", TestOption.NOCREATE, TestOption.REPLACEOUT),
             // convert tests
-            songTest("convert1", "--out %=Playsorted1.m3u8% %=Playsorted1.m3u%"),
-            songTest("convert2", "--out %=Playsorted2.m3u%  %=Playsorted2.m3u8%"),
+            songTest("convert1", "--out %=Playsorted1.m3u8% %Playsorted1.m3u=%"),
+            songTest("convert2", "--out %=Playsorted2.m3u%  %Playsorted2.m3u8=%"),
             songTest("convert3", "--type=m3u --out %=Playsorted1.m3u8% <%convert1:Playsorted1.m3u%"),
             songTest("convert4", "--type=m3u --out - %convert2:Playsorted2.m3u8% >%=Playsorted2.m3u%"),
+            songTest("convert5", "--out Rock/%=convert/convert5.m3u% %Playsorted1.m3u=%"),
+            songTest("convert6", "--out %=Playsorted1.m3u% Rock/%convert/convert5.m3u=%"),
             // map tests
             songTest("map1", "--base=%run% --map Rock=Other %map/map1input.m3u=map/map1result3.m3u% @%Playsorted1.m3u=map/map1result1.m3u% @%Playsorted2.m3u8=map/map1result2.m3u8%"),
             // shuffle and sort tests

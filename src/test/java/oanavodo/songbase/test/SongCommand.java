@@ -28,6 +28,7 @@ import org.opentest4j.AssertionFailedError;
 public class SongCommand {
 
     private static final Pattern cmdPattern = Pattern.compile("([^\\s%]*)%([^%]+)%|(\\S+)");
+    private static final Pattern prefixPattern = Pattern.compile("(\\d*[<>@])?(.*)");
     private static final String[] cmdPrefixes = new String[] {"<", ">", "2>", "@"};
 
     protected static class FileCheck {
@@ -83,6 +84,11 @@ public class SongCommand {
     }
 
     protected String provideArgument(String name, String prefix, String arg) {
+        Matcher m = prefixPattern.matcher(prefix);
+        String route = m.matches() ? m.group(1) : "";
+        if (route == null) route = "";
+        String sub = m.matches() ? m.group(2) : "";
+
         String ref = null;
         String[] parts = arg.split(":", 2);
         if (parts.length > 1) {
@@ -98,35 +104,36 @@ public class SongCommand {
             if (left.isEmpty()) left = right;
         }
         else if ("run".equals(left)) {
-            return prefix + rundir.toString();
+            return sub + rundir.toString();
         }
         Path res = null;
         Path inres = null;
         Path outres = null;
         try {
-            if (">".equals(prefix) || "2>".equals(prefix)) {
+            if (">".equals(route) || "2>".equals(route)) {
                 res = Paths.get(left);
-                inres = rundir.resolve(Paths.get("out_" + res.getFileName().toString()));
+                inres = resolve(rundir, sub, left, "out_");
             }
             else {
                 if (ref == null) {
                     res = SongBaseTest.resourcePath("/" + left);
                 }
                 else {
-                    res = getRundir(ref).resolve("out_" + left);
-                    if (!Files.exists(res)) res = getRundir(ref).resolve("in_" + left);
+                    res = resolve(getRundir(ref), null, left, "out_");
+                    if (!Files.exists(res)) res = resolve(getRundir(ref), null, left, "in_");
                 }
-                inres = rundir.resolve("in_" + res.getFileName().toString());
+                inres = resolve(rundir, sub, left, "in_");
+                Files.createDirectories(inres.getParent());
                 Files.copy(res, inres);
                 if (!options.contains(TestOption.NOCREATE)) createSongs(inres);
             }
             if (right != null) {
                 if (!right.isEmpty()) res = SongBaseTest.resourcePath("/" + right);
-                outres = cmpdir.resolve("cmp_" + res.getFileName().toString());
+                outres = resolve(cmpdir, sub, right, "cmp_");
                 copyFile(res, outres);
             }
             if (outres != null) checks.add(new FileCheck(left, inres, outres));
-            switch(prefix) {
+            switch(route) {
             case "<":
                 usedIO.setIn(new FileInputStream(inres.toFile()));
                 break;
@@ -144,7 +151,15 @@ public class SongCommand {
         catch (URISyntaxException e) {
             throw new RuntimeException(e);
         }
-        return prefix + SongBaseTest.basedir.relativize(inres).toString();
+        return route + SongBaseTest.basedir.relativize(inres).toString();
+    }
+
+    private Path resolve(Path base, String sub, String name, String prefix) {
+        if (sub == null) sub = "";
+        if (prefix == null) prefix = "";
+        Path relpath = Paths.get(sub);
+        Path namepath = Paths.get(name);
+        return base.resolve(relpath).resolve(prefix + namepath.getFileName().toString());
     }
 
     public void call() {
@@ -188,8 +203,9 @@ public class SongCommand {
         options2.setCheck(Check.NO);
         Song.setOptions(options2);
         Playlist list = Playlist.of(path);
+        Path relpath = rundir.relativize(list.getBase());
         list.entries().forEach(song -> {
-            Path spath = rundir.resolve(song.getFolder()).resolve(song.getName());
+            Path spath = rundir.resolve(relpath).resolve(song.getFolder()).resolve(song.getName());
             try {
                 Files.createDirectories(spath.getParent());
                 Files.createFile(spath);
@@ -202,6 +218,7 @@ public class SongCommand {
     }
 
     private void copyFile(Path res, Path outres) throws IOException {
+        Files.createDirectories(outres.getParent());
         if (!res.toString().endsWith(".out") || !options.contains(TestOption.REPLACEOUT)) {
             Files.copy(res, outres);
             return;
