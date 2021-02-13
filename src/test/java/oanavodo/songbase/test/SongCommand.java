@@ -3,11 +3,13 @@ package oanavodo.songbase.test;
 
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.PrintStream;
 import java.io.UncheckedIOException;
 import java.net.URISyntaxException;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
+import static java.nio.file.Files.isSameFile;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -182,7 +184,7 @@ public class SongCommand {
                         log.append(" FAIL");
                         throw new AssertionFailedError(String.format("File %s has not been created", check.name));
                     }
-                    if (Files.mismatch(check.left, check.right) != -1L) {
+                    if (mismatch(check.left, check.right) != -1L) {
                         log.append(" FAIL");
                         throw new AssertionFailedError(String.format("Content of file %s is not correct", check.name));
                     }
@@ -231,6 +233,34 @@ public class SongCommand {
     private void cleanDirectory(Path dir) throws IOException {
         try (Stream<Path> s = Files.walk(dir)) {
             s.filter(path -> !path.equals(dir)).forEach(path -> path.toFile().delete());
+        }
+    }
+
+    /* copied from {@link Files.mismatch(Path,Path)} in java 12 code */
+    private static final int BUFFER_SIZE = 8192;
+    private static long mismatch(Path path, Path path2) throws IOException {
+        if (isSameFile(path, path2)) {
+            return -1;
+        }
+        byte[] buffer1 = new byte[BUFFER_SIZE];
+        byte[] buffer2 = new byte[BUFFER_SIZE];
+        try (InputStream in1 = Files.newInputStream(path);
+             InputStream in2 = Files.newInputStream(path2);) {
+            long totalRead = 0;
+            while (true) {
+                int nRead1 = in1.readNBytes(buffer1, 0, BUFFER_SIZE);
+                int nRead2 = in2.readNBytes(buffer2, 0, BUFFER_SIZE);
+
+                int i = Arrays.mismatch(buffer1, 0, nRead1, buffer2, 0, nRead2);
+                if (i > -1) {
+                    return totalRead + i;
+                }
+                if (nRead1 < BUFFER_SIZE) {
+                    // we've reached the end of the files, but found no mismatch
+                    return -1;
+                }
+                totalRead += nRead1;
+            }
         }
     }
 }
