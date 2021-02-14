@@ -32,17 +32,19 @@ public class SongBase {
             "              playlist is written to standard output. If option '--out' is used only one playlist argument can be specified.",
             "--dryrun      No changes are made. Only report what would be done.",
             "--nocheck     Don't check if a songs exists when reading in the playlists.",
-            "--nointerpret During default map operation: don't check for interpret folders.",
+            "--interpret   During map operation: if a folder exists named equal to the artist the song is moved to this folder instead of the",
+            "              the destination folder.",
             "--rmsource    During map operation: delete a song in the source folder if it already exists in destination folder.",
             "--sorted      All playlists which has to be written are sorted before writing them. This also applies to standard output writes.",
             "--type <type> Playlist type when reading from standard input and writing to standard output (defaults to m3u).",
             "--help        Display this help.",
             "Operations:",
             "If no operation is specified but the '--out' option with one playlist the playlist format can be converted.",
-            "--map <a>=<b>       Move all songs from folder <a> found in playlist <list> to folder <b>. Only one playlist argument is allowed.",
-            "                    All other playlists found in the base folder are updated to reflect this move.",
-            "                    A special behavior in this operation (if not switched of with option '--nointerpret') is that if there is a",
-            "                    folder with the name of the interpret then the song is moved to this folder instead of <b>.",
+            "--map [<a>[=<b>]]   Move all songs from folder <a> found in playlist <list> to folder <b>. Only one playlist argument is allowed.",
+            "                    All other playlists found in the base folder are updated to reflect this move. Default folder for <a> is 'Neu'.",
+            "                    Default folder for <b> is 'Rock'.",
+            "                    A special behavior in this operation may be switched on with option '--interpret': if there is a folder equal",
+            "                    to the name of the interpret then the song is moved to this folder instead of <b>.",
             "--check             Only check if the songs of a playlist exists. If no playlist arguments are supplied all playlists found in the",
             "                    base folder (defaults to working directory) are checked. Otherwise only the supplied playlist[s] are checked.",
             "--sort              Sorts all playlists supplied as arguments. If solely '-' is specified standard input is sorted and written",
@@ -140,13 +142,14 @@ public class SongBase {
             String type = null;
             int shufflegap = 5;
             String search = "";
-            boolean nointerpret = false;
+            boolean dointerpret = false;
             boolean delete = false;
             boolean sorted = false;
+            boolean forceargs = false;
             int i = 0;
             while (i < args.length) {
                 String option = args[i++];
-                if (!option.startsWith("--")) {
+                if (forceargs || !option.startsWith("--")) {
                     paras.add(option);
                     continue;
                 }
@@ -157,104 +160,108 @@ public class SongBase {
                     option = option.substring(0, pos + 1);
                 }
                 switch(option) {
-                    case "--nocheck":
-                        options.setCheck(Check.NO);
-                        break;
-                    case "--nointerpret":
-                        nointerpret = true;
-                        break;
-                    case "--rmsource":
-                        delete = true;
-                        break;
-                    case "--sorted":
-                        sorted = true;
-                        break;
-                    case "--dryrun":
-                        options.setDryrun(true);
-                        break;
-                    case "--help":
-                        System.err.println(usage());
-                        System.exit(0);
-                        break;
-                    case "--base":
-                        if ((i >= args.length) || args[i].startsWith("--") || args[i].isBlank()) throw new RuntimeException("Please supply base folder");
+                case "--":
+                    forceargs = true;
+                    break;
+                case "--nocheck":
+                    options.setCheck(Check.NO);
+                    break;
+                case "--interpret":
+                    dointerpret = true;
+                    break;
+                case "--rmsource":
+                    delete = true;
+                    break;
+                case "--sorted":
+                    sorted = true;
+                    break;
+                case "--dryrun":
+                    options.setDryrun(true);
+                    break;
+                case "--help":
+                    System.err.println(usage());
+                    System.exit(0);
+                    break;
+                case "--base":
+                    if ((i >= args.length) || args[i].startsWith("--") || args[i].isBlank()) throw new RuntimeException("Please supply base folder");
+                    value = args[i++];
+                case "--base=":
+                    try {
+                        if (value.isBlank()) throw new InvalidPathException(value, "Empty path not allowed");
+                        root = Paths.get(value).toAbsolutePath();
+                    }
+                    catch (InvalidPathException ex) {
+                        throw new RuntimeException("Please supply a valid " + option.substring(2) + " base path", ex);
+                    }
+                    if (!Files.isDirectory(root)) throw new RuntimeException("Base folder not found: " + root.toString());
+                    break;
+                case "--type":
+                    if ((i >= args.length) || args[i].startsWith("--") || args[i].isBlank()) throw new RuntimeException("Please supply type");
+                    value = args[i++];
+                case "--type=":
+                    type = value.toLowerCase();
+                    break;
+                case "--out":
+                    if ((i >= args.length) || args[i].startsWith("--") || args[i].isBlank()) throw new RuntimeException("Please supply output path");
+                    value = args[i++];
+                case "--out=":
+                    out = value;
+                    break;
+                case "--check":
+                    command = Operation.CHECKONLY;
+                    break;
+                case "--map":
+                    if ((i < args.length) && !args[i].startsWith("--")) {
                         value = args[i++];
-                    case "--base=":
-                        try {
-                            if (value.isBlank()) throw new InvalidPathException(value, "Empty path not allowed");
-                            root = Paths.get(value).toAbsolutePath();
-                        }
-                        catch (InvalidPathException ex) {
-                            throw new RuntimeException("Please supply a valid " + option.substring(2) + " base path", ex);
-                        }
-                        if (!Files.isDirectory(root)) throw new RuntimeException("Base folder not found: " + root.toString());
-                        break;
-                    case "--type":
-                        if ((i >= args.length) || args[i].startsWith("--") || args[i].isBlank()) throw new RuntimeException("Please supply type");
+                    }
+                case "--map=":
+                    String[] parts = value.split("=");
+                    if (parts.length > 2) throw new RuntimeException("Invalid mapping: " + Arrays.toString(parts));
+                    from = !parts[0].isEmpty() ? parts[0] : "Neu";
+                    into = Paths.get(((parts.length > 1) && !parts[1].isEmpty()) ? parts[1] : "Rock");
+                    command = Operation.MAP;
+                    break;
+                case "--sort":
+                    command = Operation.SORT;
+                    break;
+                case "--shuffle":
+                    if ((i < args.length) && !args[i].startsWith("--") && args[i].matches("\\d+")) {
                         value = args[i++];
-                    case "--type=":
-                        type = value.toLowerCase();
-                        break;
-                    case "--out":
-                        if ((i >= args.length) || args[i].startsWith("--") || args[i].isBlank()) throw new RuntimeException("Please supply output path");
-                        value = args[i++];
-                    case "--out=":
-                        out = value;
-                        break;
-                    case "--check":
-                        command = Operation.CHECKONLY;
-                        break;
-                    case "--map":
-                        if ((i >= args.length) || args[i].startsWith("--") || args[i].isBlank()) throw new RuntimeException("Please supply mapping");
-                        value = args[i++];
-                    case "--map=":
-                        String[] parts = value.split("=");
-                        if ((parts.length > 2) || (parts[0].isEmpty())) throw new RuntimeException("Invalid mapping: " + Arrays.toString(parts));
-                        from = parts[0];
-                        if (parts.length > 1) into = Paths.get(parts[1]);
-                        command = Operation.MAP;
-                        break;
-                    case "--sort":
-                        command = Operation.SORT;
-                        break;
-                    case "--shuffle":
-                        if ((i >= args.length) && !args[i].startsWith("--") && args[i].matches("\\d+")) {
-                            value = args[i++];
-                        }
-                    case "--shuffle=":
-                        try { shufflegap = Integer.parseInt(value, 10); }
-                        catch(NumberFormatException ex) {}
-                        command = Operation.SHUFFLE;
-                        break;
-                    case "--select":
-                        if ((i >= args.length) || args[i].startsWith("--") || args[i].isBlank()) throw new RuntimeException("Please supply search string");
-                        value = args[i++];
-                    case "--select=":
-                        search = value;
-                        command = Operation.SELECT;
-                        break;
-                    case "--union":
-                        command = Operation.UNION;
-                        break;
-                    case "--add":
-                    case "--remove":
-                    case "--intersect":
-                        if ((i >= args.length) || args[i].startsWith("--") || args[i].isBlank()) throw new RuntimeException("Please supply " + option.substring(2) + " playlist");
-                        value = args[i++];
-                    case "--add=":
-                    case "--remove=":
-                    case "--intersect=":
-                        try {
-                            if (value.isBlank()) throw new InvalidPathException(value, "Empty path not allowed");
-                            into = Paths.get(value);
-                        }
-                        catch (InvalidPathException ex) {
-                            throw new RuntimeException("Please supply a valid " + option.substring(2) + " playlist path", ex);
-                        }
-                        command = Operation.valueOf(option.substring(2).replace("=", "").toUpperCase());
-                        break;
-                    default:
-                        throw new RuntimeException("Invalid option: " + option);
+                    }
+                case "--shuffle=":
+                    try { shufflegap = Integer.parseInt(value, 10); }
+                    catch(NumberFormatException ex) {}
+                    command = Operation.SHUFFLE;
+                    break;
+                case "--select":
+                    if ((i >= args.length) || args[i].startsWith("--") || args[i].isBlank()) throw new RuntimeException("Please supply search string");
+                    value = args[i++];
+                case "--select=":
+                    search = value;
+                    command = Operation.SELECT;
+                    break;
+                case "--union":
+                    command = Operation.UNION;
+                    break;
+                case "--add":
+                case "--remove":
+                case "--intersect":
+                    if ((i >= args.length) || args[i].startsWith("--") || args[i].isBlank()) throw new RuntimeException("Please supply " + option.substring(2) + " playlist");
+                    value = args[i++];
+                case "--add=":
+                case "--remove=":
+                case "--intersect=":
+                    try {
+                        if (value.isBlank()) throw new InvalidPathException(value, "Empty path not allowed");
+                        into = Paths.get(value);
+                    }
+                    catch (InvalidPathException ex) {
+                        throw new RuntimeException("Please supply a valid " + option.substring(2) + " playlist path", ex);
+                    }
+                    command = Operation.valueOf(option.substring(2).replace("=", "").toUpperCase());
+                    break;
+                default:
+                    throw new RuntimeException("Invalid option: " + option);
                 }
             }
 
@@ -372,30 +379,28 @@ public class SongBase {
                 if (paras.isEmpty()) throw new RuntimeException("Please supply input playlist or specify - for stdin");
                 if (paras.size() > 1) throw new RuntimeException("Only one playlist argument can be specified for '--map' operation");
                 Playlist that = arg2Playlist(paras.poll(), root, type, out);
-                if (root == null) root = that.getBase();
-                PlaylistList factory = new PlaylistList(root, true);
-                factory.removePlaylist(that);
 
                 Path base = that.getBase();
-                if (from == null) from = "Neu";
-                if (into != null) nointerpret = true;
-                if (into == null) into = Paths.get("Rock");
                 Path to = base.resolve(into);
                 if (!Files.isDirectory(to)) throw new RuntimeException("To folder not found: " + to.toString());
+
+                if (root == null) root = base;
+                PlaylistList factory = new PlaylistList(root, true);
+                factory.removePlaylist(that);
 
                 System.err.format("SONGBASE: Mapping '%s' -> '%s' based on %s\n", from.replaceAll("\\\\", "/"), into.toString().replaceAll("\\\\", "/"), that.getName());
                 int countno = 0;
                 Map<Path, Integer> counts = new TreeMap<>();
                 for (Playlist.Entry song : that.getEntries()) {
                     String folder = song.getFolderString();
-                    String interpret = song.getInterpret();
                     if (!folder.equals(from)) {
                         countno++;
                         continue;
                     }
-                    Path newpath = base.resolve(interpret);
-                    if (nointerpret || !Files.isDirectory(newpath)) {
-                        newpath = to;
+                    Path newpath = to;
+                    if (dointerpret) {
+                        Path intpath = base.resolve(song.getInterpret());
+                        if (Files.isDirectory(intpath)) newpath = intpath;
                     }
                     if (Files.isSameFile(base.resolve(folder), newpath)) {
                         countno++;
