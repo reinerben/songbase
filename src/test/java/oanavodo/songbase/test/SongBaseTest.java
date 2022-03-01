@@ -81,6 +81,12 @@ public class SongBaseTest {
             songTest("shuffle5", "--base=%run% --shuffle --type=m3u8 - <%Playsorted2.m3u8% >%Playmixed2.m3u8%"),
             songTest("sort4", "--base=%run% --sort --type=m3u  - <%shuffle4:Playmixed1.m3u%  >%=Playsorted1.m3u%"),
             songTest("sort5", "--base=%run% --sort --type=m3u8 - <%shuffle5:Playmixed2.m3u8% >%=Playsorted2.m3u8%"),
+            // add and remove
+            songTest("add1", "--base=%run% --sorted --type=m3u --add %Playsorted2.m3u=Playsorted2.m3u% %Playsorted1.m3u=Playsorted1.m3u% --out - >%=add/Playadd1.m3u%"),
+            songTest("remove1", "--base=%run% --sorted --type=m3u --remove %Playsorted2.m3u=Playsorted2.m3u% %add1:Playadd1.m3u=% --out - >%=add/Playremove1.m3u%"),
+            songTest("readd1", "--base=%run% --sorted --type=m3u --add %Playsorted1.m3u=Playsorted1.m3u% %remove1:Playremove1.m3u=% --out - >%=Playsorted1.m3u%"),
+            songTest("add2", "--base=%run% --sorted --type=m3u --add %run:Eurythmics/Eurythmics--Angel.mp3% %Playsorted1.m3u=% @%Playsorted2.m3u% --out - >%=add/Playadd2.m3u%"),
+            songTest("remove2", "--base=%run% --sorted --type=m3u --remove %run:Eurythmics/Eurythmics--Angel.mp3% %add2:Playadd2.m3u=% --out - >%=Playsorted1.m3u%"),
         };
     }
 

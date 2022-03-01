@@ -1,6 +1,7 @@
 package oanavodo.songbase.test;
 
 
+import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -91,11 +92,19 @@ public class SongCommand {
         if (route == null) route = "";
         String sub = m.matches() ? m.group(2) : "";
 
+        if ("run".equals(arg)) {
+            return sub + rundir.toString();
+        }
         String ref = null;
         String[] parts = arg.split(":", 2);
         if (parts.length > 1) {
             ref = parts[0];
             arg = parts[1];
+        }
+        if ("run".equals(ref)) {
+            arg = arg.replace("/", File.separator);
+            if (!arg.startsWith(File.separator)) arg = File.separator + arg;
+            return sub + rundir.toString() + arg;
         }
         parts = arg.split("=", 2);
         String left = parts[0];
@@ -104,9 +113,6 @@ public class SongCommand {
         if (left.isEmpty() && ((right == null) || right.isEmpty())) throw new IllegalArgumentException("Missing file name");
         if (right != null) {
             if (left.isEmpty()) left = right;
-        }
-        else if ("run".equals(left)) {
-            return sub + rundir.toString();
         }
         Path res = null;
         Path inres = null;
@@ -132,7 +138,7 @@ public class SongCommand {
             if (right != null) {
                 if (!right.isEmpty()) res = SongBaseTest.resourcePath("/" + right);
                 outres = resolve(cmpdir, sub, right, "cmp_");
-                copyFile(res, outres);
+                if (right.isEmpty() || !Files.exists(outres)) copyFile(res, outres);
             }
             if (outres != null) checks.add(new FileCheck(left, inres, outres));
             switch(route) {

@@ -56,13 +56,16 @@ public class SongBase {
             "--select <text>     Write entries of playlist <list> which contains text <text> to standard output. Multiple playlist arguments",
             "                    are allowed. The text is searched in the folder, interpret and title part. The search is case sensitive.",
             "--add <list2>       Add content of playlist <list2> to all playlists supplied as arguments. If solely '-' is specified the union",
-            "                    of standard input and <list2> are written to standard output. If option '--out <file>' is specified the output",
-            "                    is written to the specified file. If no playlist is supplied as argument the songs from <list2> are added to all",
-            "                    playlists found in the base folder.",
+            "                    of standard input and <list2> are written to standard output. It is also possible to specify a song file",
+            "                    for <list2> instead of a playlist file. In this case this solely song is added.",
+            "                    If option '--out <file>' is specified the output is written to the specified file. If no playlist is supplied",
+            "                    as argument the songs from <list2> are added to all playlists found in the base folder.",
+            "                    It is also possible to specify a song file for <list2> instead of a playlist file. In this case this song is added.",
             "--remove <list2>    Remove content of playlist <list2> from all playlists supplied as arguments. If solely '-' is specified the",
-            "                    differences between standard input and <list2> are written to standard output. If option '--out <file>' is specified",
-            "                    the output is written to the specified file. If no playlist is supplied as argument the songs from <list2> are",
-            "                    removed from all playlists found in the base folder.",
+            "                    differences between standard input and <list2> are written to standard output. It is also possible to specify a song file",
+            "                    for <list2> instead of a playlist file. In this case this solely song is added.",
+            "                    If option '--out <file>' is specified the output is written to the specified file. If no playlist is supplied as",
+            "                    argument the songs from <list2> are removed from all playlists found in the base folder.",
             "--union             Write content of all playlists supplied as argument to standard output.",
             "--intersect <list2> Write common entries in playlist <list2> and playlist <list> to standard output. Only one playlist argument is allowed."
         ).collect(Collectors.joining("\n"));
@@ -324,7 +327,7 @@ public class SongBase {
                     if (root == null) root = Paths.get("").toAbsolutePath();
                     factory = new PlaylistList(root, true);
                 }
-                Playlist that = Playlist.of(into);
+                Playlist that = Playlist.ofPlaylistOrSong(into);
                 factory.removePlaylist(that);
                 factory.stream()
                     .peek(list -> System.err.format("SONGBASE: Add %s to %s\n", that.getName(), list.getName()))
@@ -341,7 +344,7 @@ public class SongBase {
                     if (root == null) root = Paths.get("").toAbsolutePath();
                     factory = new PlaylistList(root, true);
                 }
-                Playlist that = Playlist.of(into);
+                Playlist that = Playlist.ofPlaylistOrSong(into);
                 factory.removePlaylist(that);
                 factory.stream()
                     .peek(list -> System.err.format("SONGBASE: Remove %s from %s\n", that.getName(), list.getName()))

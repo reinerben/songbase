@@ -31,7 +31,8 @@ public class Playlist {
     }
 
     /**
-     * Instantiates a playlist object from a file.Changes will be written back to this file.
+     * Instantiates a playlist object from a file.
+     * Changes will be written back to this file.
      * @param in path to file
      * @return
      */
@@ -41,7 +42,20 @@ public class Playlist {
     }
 
     /**
-     * Instantiates a playlist object from a file.Changes will be written to an output stream.
+     * Instantiates a playlist object from a file.
+     * Also a fake playlist for one song is allowed.
+     * Changes will be written back to this file (if no fake).
+     * @param in path to file
+     * @return
+     */
+    public static Playlist ofPlaylistOrSong(Path in) {
+        PlaylistIO inio = PlaylistIO.ofPlaylistOrSong(in);
+        return create(inio, PlaylistIO.ofPlaylistOrSong(in), inio.getPath().getParent());
+    }
+
+    /**
+     * Instantiates a playlist object from a file.
+     * Changes will be written to an output stream.
      * @param in path to file
      * @param out where playlist is written after change
      * @param type playlist type. If null use type of input file
@@ -54,7 +68,8 @@ public class Playlist {
     }
 
     /**
-     * Instantiates a playlist object from a file.Changes will be written to an output file.
+     * Instantiates a playlist object from a file.
+     * Changes will be written to an output file.
      * @param in path to file
      * @param out where playlist is written after change
      * @return
@@ -65,7 +80,8 @@ public class Playlist {
     }
 
     /**
-     * Instantiates a playlist object from input stream.Changes are written to an output file.
+     * Instantiates a playlist object from input stream.
+     * Changes are written to an output file.
      * @param in where the playlist is read in
      * @param out where playlist is written after change
      * @param parent base folder of the playlist
@@ -77,7 +93,8 @@ public class Playlist {
     }
 
     /**
-     * Instantiates a playlist object from input stream.Changes are written to an output stream.
+     * Instantiates a playlist object from input stream.
+     * Changes are written to an output stream.
      * @param in where the playlist is read in
      * @param out where playlist is written after change
      * @param parent base folder of the playlist
@@ -118,7 +135,7 @@ public class Playlist {
         }
         if (in.hasInput()) {
             try {
-                System.err.format("PLAYLIST: reading %s\n", in.getName());
+                if (!in.isOneSong()) System.err.format("PLAYLIST: reading %s\n", in.getName());
                 in.fill(list.getInterface(null), (options.getCheck() == Check.ONLY));
             }
             catch (IOException ex) {
@@ -296,7 +313,7 @@ public class Playlist {
 
     public void write(boolean sorted) {
         if (!output.hasOutput()) return;
-        System.err.format("PLAYLIST: writing %s\n", output.getName());
+        if (!output.isOneSong()) System.err.format("PLAYLIST: writing %s\n", output.getName());
         if (sorted) sort();
         try {
             if (!options.isDryrun() || (output.getOutput() != null)) {

@@ -14,7 +14,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
+import java.util.Set;
 
 /**
  * Helper class for reading/writting from/to a playlist.
@@ -34,6 +34,8 @@ public abstract class PlaylistIO {
         "m3u8", (path, in, out) -> new M3u8(path, in, out)
     );
 
+    private static final Set<String> songtypes = Set.of("mp3");
+
     protected Path path;
     protected String name;
     protected InputStream input;
@@ -46,7 +48,17 @@ public abstract class PlaylistIO {
      * @return
      */
     public static PlaylistIO of(Path path) {
-        return create(path, null, null, detectType(path));
+        return create(path, null, null, detectType(path), false);
+    }
+
+    /**
+     * Creates an instance for file IO
+     * Also allow intern one song fake playlist
+     * @param path path to playlist or song file
+     * @return
+     */
+    public static PlaylistIO ofPlaylistOrSong(Path path) {
+        return create(path, null, null, detectType(path), true);
     }
 
     /**
@@ -56,7 +68,7 @@ public abstract class PlaylistIO {
      * @return
      */
     public static PlaylistIO of(InputStream in, String type) {
-        return create(null, in, null, type);
+        return create(null, in, null, type, false);
     }
 
     /**
@@ -66,7 +78,7 @@ public abstract class PlaylistIO {
      * @return
      */
     public static PlaylistIO of(OutputStream out, String type) {
-        return create(null, null, out, type);
+        return create(null, null, out, type, false);
     }
 
     /**
@@ -76,15 +88,20 @@ public abstract class PlaylistIO {
      * @return
      */
     public static PlaylistIO of(String type) {
-        return create(null, null, null, type);
+        return create(null, null, null, type, false);
     }
 
-    private static PlaylistIO create(Path path, InputStream in, OutputStream out, String type) {
+    private static PlaylistIO create(Path path, InputStream in, OutputStream out, String type, boolean onesong) {
         final String type1 = (type == null) ? "m3u" : type;
         try {
-            PlaylistIO io =  Optional.ofNullable(creators.get(type)).orElseThrow(
-                () -> new RuntimeException("Playlist type not supported: " + type1)
-            ).apply(path, in, out);
+            Creator creator = creators.get(type);
+            if ((creator == null) && onesong && songtypes.contains(type1)) {
+                creator = (p, i, o) -> new OneSong(path);
+            }
+            if (creator == null) {
+                throw new RuntimeException("Playlist type not supported: " + type1);
+            }
+            PlaylistIO io = creator.apply(path, in, out);
             io.setType(type);
             return io;
         }
@@ -166,6 +183,10 @@ public abstract class PlaylistIO {
         return ((path != null) || (output != null));
     }
 
+    public boolean isOneSong() {
+        return (this instanceof OneSong);
+    }
+
     @Override
     public int hashCode() {
         int hash = 5;
@@ -192,6 +213,32 @@ public abstract class PlaylistIO {
         if (!Objects.equals(this.path, other.path)) return false;
         if (!Objects.equals(this.input, other.input)) return false;
         return Objects.equals(this.output, other.output);
+    }
+
+    /**
+     * Intern subclass represents m3u (iso8859-1) format.
+     * Currently #EXT lines are not supported
+     */
+    private static class OneSong extends PlaylistIO {
+
+        protected OneSong(Path path) throws IOException {
+            super(path, null, null);
+        }
+
+        @Override
+        protected void fill(PlaylistInterface list, boolean onlycheck) throws IOException {
+            try {
+                list.addEntry(list.createEntry(getPath().getFileName()));
+            }
+            catch (Exception ex) {
+                if (!onlycheck) throw ex;
+                System.err.println(ex.getMessage());
+            }
+        }
+        @Override
+        protected void save(PlaylistInterface list) throws IOException {
+            throw new RuntimeException("Intern playlist cannot be saved: " + getPath().toString());
+        }
     }
 
     /**
