@@ -94,7 +94,7 @@ public abstract class PlaylistIO {
     private static PlaylistIO create(Path path, InputStream in, OutputStream out, String type, boolean onesong) {
         final String type1 = (type == null) ? "m3u" : type;
         try {
-            Creator creator = creators.get(type);
+            Creator creator = creators.get(type1);
             if ((creator == null) && onesong && songtypes.contains(type1)) {
                 creator = (p, i, o) -> new OneSong(path);
             }
@@ -102,7 +102,7 @@ public abstract class PlaylistIO {
                 throw new RuntimeException("Playlist type not supported: " + type1);
             }
             PlaylistIO io = creator.apply(path, in, out);
-            io.setType(type);
+            io.setType(type1);
             return io;
         }
         catch (IOException ex) {
